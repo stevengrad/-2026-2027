@@ -4,17 +4,21 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  UserCheck,
   ShieldAlert,
   ChevronDown,
   ChevronUp,
   RefreshCw,
   Search,
+  Pencil,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { SaintAvatar } from '../../components/ui/SaintAvatar';
 import { Empty, ErrorNote, Skeleton } from '../../components/ui/States';
 import { dayLabel, num, timeLabel } from '../../lib/format';
+import { TOURNAMENT_CLASSES } from '../../lib/classes';
+import { teamFormSchema } from '../../lib/schemas';
 
 interface AdminPlayer {
   id: string;
@@ -36,6 +40,14 @@ interface AdminTeam {
   players: AdminPlayer[];
 }
 
+interface EditablePlayer {
+  draftId: string;
+  id?: string;
+  name: string;
+  className: string;
+  source: AdminPlayer['source'];
+}
+
 export default function AdminTeams() {
   const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
   const [search, setSearch] = useState('');
@@ -46,9 +58,11 @@ export default function AdminTeams() {
   const [rejectReason, setRejectReason] = useState('');
   const [returnPlayers, setReturnPlayers] = useState(true);
 
-  // Assign saint modal state
-  const [assigningTeam, setAssigningTeam] = useState<AdminTeam | null>(null);
-  const [selectedSaintId, setSelectedSaintId] = useState('');
+  // Team editor and destructive-delete confirmation state
+  const [editingTeam, setEditingTeam] = useState<AdminTeam | null>(null);
+  const [editSaintId, setEditSaintId] = useState('');
+  const [editPlayers, setEditPlayers] = useState<EditablePlayer[]>([]);
+  const [deletingTeam, setDeletingTeam] = useState<AdminTeam | null>(null);
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -94,11 +108,35 @@ export default function AdminTeams() {
     setActionSuccess(null);
   };
 
+  const openTeamEditor = (team: AdminTeam) => {
+    clearMessages();
+    setEditingTeam(team);
+    setEditSaintId(team.saint?.id ?? '');
+    setEditPlayers(team.players.map((player) => ({
+      draftId: player.id,
+      id: player.id,
+      name: player.full_name_ar,
+      className: player.class_name_ar,
+      source: player.source,
+    })));
+  };
+
+  const describeActionError = (e: unknown, fallback: string) => {
+    const message = e instanceof Error ? e.message : '';
+    if (message.includes('team_in_competition')) return 'لا يمكن تعديل أو حذف فريق بعد إدراجه في المجموعات أو المباريات. حافظنا على سجل البطولة كما هو.';
+    if (message.includes('team_not_editable')) return 'لا يمكن تعديل فريق مرفوض. احذفه إذا أردت إزالته نهائياً.';
+    if (message.includes('saint_taken')) return 'هذا القديس محجوز لفريق آخر بالفعل.';
+    if (message.includes('invalid_player_count')) return 'يجب أن تضم القائمة من ٤ إلى ٧ لاعبين.';
+    if (message.includes('duplicate_players')) return 'يوجد لاعب مكرر في القائمة.';
+    if (message.includes('player_not_in_team')) return 'تغيّرت قائمة اللاعبين. حدّث الصفحة ثم حاول مرة أخرى.';
+    return message || fallback;
+  };
+
   const handleApprove = async (team: AdminTeam) => {
     clearMessages();
     if (!team.saint) {
       setActionError('لا يمكن اعتماد الفريق بدون تحديد اسم القديس أولاً. يرجى تعيين قديس.');
-      setAssigningTeam(team);
+      openTeamEditor(team);
       return;
     }
     setBusy(true);
@@ -137,23 +175,54 @@ export default function AdminTeams() {
     }
   };
 
-  const handleAssignSaintConfirm = async () => {
-    if (!assigningTeam || !selectedSaintId) return;
+  const handleUpdateTeamConfirm = async () => {
+    if (!editingTeam) return;
+    clearMessages();
+    const parsed = teamFormSchema.safeParse({
+      saintId: editSaintId,
+      players: editPlayers.map((player) => ({ name: player.name, class: player.className })),
+    });
+    if (!parsed.success) {
+      setActionError(parsed.error.issues[0]?.message ?? 'راجع بيانات الفريق ثم حاول مرة أخرى.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase!.rpc('update_team_roster', {
+        p_team: editingTeam.id,
+        p_saint: editSaintId,
+        p_players: editPlayers.map((player) => ({
+          ...(player.id ? { id: player.id } : {}),
+          name: player.name.trim(),
+          class: player.className,
+        })),
+      });
+      if (error) throw error;
+      const saintName = saints?.find((saint) => saint.id === editSaintId)?.name_ar ?? 'الفريق';
+      setActionSuccess(`تم حفظ تعديلات فريق "${saintName}" بنجاح.`);
+      setEditingTeam(null);
+      setEditPlayers([]);
+      refetch();
+    } catch (e: unknown) {
+      setActionError(describeActionError(e, 'تعذّر حفظ تعديلات الفريق.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteTeamConfirm = async () => {
+    if (!deletingTeam) return;
     clearMessages();
     setBusy(true);
     try {
-      const { error } = await supabase!.rpc('assign_team_saint', {
-        p_team: assigningTeam.id,
-        p_saint: selectedSaintId,
-      });
+      const { error } = await supabase!.rpc('delete_team', { p_team: deletingTeam.id });
       if (error) throw error;
-      setActionSuccess('تم تعيين القديس للفريق بنجاح.');
-      setAssigningTeam(null);
-      setSelectedSaintId('');
+      setActionSuccess(`تم حذف فريق "${deletingTeam.saint?.name_ar ?? `#${deletingTeam.team_number}`}" نهائياً.`);
+      if (expandedTeamId === deletingTeam.id) setExpandedTeamId(null);
+      setDeletingTeam(null);
       refetch();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'تعذّر تعيين القديس.';
-      setActionError(msg.includes('saint_taken') ? 'هذا القديس محجوز لفريق آخر بالفعل.' : msg);
+      setActionError(describeActionError(e, 'تعذّر حذف الفريق.'));
     } finally {
       setBusy(false);
     }
@@ -362,34 +431,30 @@ export default function AdminTeams() {
                           رفض
                         </button>
 
-                        <button
-                          onClick={() => {
-                            setAssigningTeam(team);
-                            setSelectedSaintId(team.saint?.id ?? '');
-                          }}
-                          disabled={busy}
-                          className="btn-ghost !min-h-9 !px-3 text-xs"
-                          title="تحديد أو تغيير اسم القديس"
-                        >
-                          <UserCheck className="h-3.5 w-3.5" />
-                          {team.saint ? 'تغيير القديس' : 'تعيين قديس'}
-                        </button>
                       </>
                     )}
 
-                    {team.status === 'approved' && (
+                    {team.status !== 'rejected' && (
                       <button
-                        onClick={() => {
-                          setAssigningTeam(team);
-                          setSelectedSaintId(team.saint?.id ?? '');
-                        }}
+                        onClick={() => openTeamEditor(team)}
                         disabled={busy}
                         className="btn-ghost !min-h-9 !px-3 text-xs"
-                        title="تعديل قديس الفريق"
+                        title="تعديل اسم القديس وقائمة لاعبي الفريق"
                       >
-                        تعديل القديس
+                        <Pencil className="h-3.5 w-3.5" />
+                        تعديل الفريق
                       </button>
                     )}
+
+                    <button
+                      onClick={() => setDeletingTeam(team)}
+                      disabled={busy}
+                      className="btn-ghost !min-h-9 !px-3 text-xs text-danger hover:border-danger hover:text-danger"
+                      title="حذف الفريق نهائياً"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      حذف
+                    </button>
 
                     <button
                       onClick={() => setExpandedTeamId(isExpanded ? null : team.id)}
@@ -491,51 +556,65 @@ export default function AdminTeams() {
         </div>
       )}
 
-      {/* Assign Saint Modal */}
-      {assigningTeam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-gold/40 bg-midnight p-6 shadow-2xl">
-            <h2 className="font-heading text-lg font-bold text-gold">
-              تعيين قديس لفريق #{num(assigningTeam.team_number)}
-            </h2>
-            <p className="mt-1 text-xs text-ivory/70">
-              اختر قديساً معتمداً لم يحجزه أي فريق نشط آخر.
-            </p>
+      {/* Team Editor Modal */}
+      {editingTeam && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-midnight/80 p-4 backdrop-blur-sm">
+          <div className="mx-auto my-4 w-full max-w-3xl rounded-2xl border border-gold/40 bg-midnight p-5 shadow-2xl sm:p-6">
+            <h2 className="font-heading text-lg font-bold text-gold">تعديل فريق #{num(editingTeam.team_number)}</h2>
+            <p className="mt-1 text-xs leading-5 text-ivory/70">يمكنك تغيير اسم القديس وقائمة اللاعبين. يجب أن يبقى الفريق بين ٤ و٧ لاعبين.</p>
 
-            <div className="mt-4">
-              <label className="mb-1 block text-xs font-semibold text-ivory" htmlFor="saint-select">
-                اختر القديس:
-              </label>
-              <select
-                id="saint-select"
-                className="field text-xs"
-                value={selectedSaintId}
-                onChange={(e) => setSelectedSaintId(e.target.value)}
-              >
+            <div className="mt-5">
+              <label className="mb-1 block text-xs font-semibold text-ivory" htmlFor="team-editor-saint">اسم القديس</label>
+              <select id="team-editor-saint" className="field text-sm" value={editSaintId} onChange={(e) => setEditSaintId(e.target.value)}>
                 <option value="">-- اختر قديساً من القائمة --</option>
-                {(saints ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name_ar}
-                  </option>
-                ))}
+                {(saints ?? []).map((saint) => <option key={saint.id} value={saint.id}>{saint.name_ar}</option>)}
               </select>
             </div>
 
+            <section className="mt-5 rounded-xl border border-ivory/10 bg-emerald/25 p-3 sm:p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div><h3 className="font-heading text-sm font-bold text-gold">قائمة اللاعبين ({num(editPlayers.length)} من ٧)</h3>
+                  <p className="mt-1 text-[11px] text-ivory/60">الحد الأدنى ٤ لاعبين. إزالة لاعب فردي تعيده إلى قائمة الانتظار.</p></div>
+                <button type="button" onClick={() => setEditPlayers((players) => [...players, { draftId: crypto.randomUUID(), name: '', className: '', source: 'team_registration' }])} disabled={editPlayers.length >= 7 || busy} className="btn-ghost !min-h-9 !px-3 text-xs">
+                  <Plus className="h-3.5 w-3.5" /> إضافة لاعب
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {editPlayers.map((player, index) => <div key={player.draftId} className="rounded-xl border border-ivory/10 bg-midnight/50 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2"><span className="font-heading text-xs text-gold">اللاعب {num(index + 1)}</span>
+                    <div className="flex items-center gap-2">{player.source === 'individual' && <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] text-sky-200">تسجيل فردي</span>}
+                      {editPlayers.length > 4 && <button type="button" onClick={() => setEditPlayers((players) => players.filter((item) => item.draftId !== player.draftId))} disabled={busy} className="text-danger hover:text-danger/80" aria-label={`حذف اللاعب ${num(index + 1)}`}><Trash2 className="h-4 w-4" /></button>}
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input className="field !min-h-10 text-sm" value={player.name} onChange={(e) => setEditPlayers((players) => players.map((item) => item.draftId === player.draftId ? { ...item, name: e.target.value } : item))} placeholder="اسم اللاعب" aria-label={`اسم اللاعب ${num(index + 1)}`} />
+                    <select className="field !min-h-10 text-sm" value={player.className} onChange={(e) => setEditPlayers((players) => players.map((item) => item.draftId === player.draftId ? { ...item, className: e.target.value } : item))} aria-label={`فصل اللاعب ${num(index + 1)}`}>
+                      <option value="">اختر الفصل…</option>{TOURNAMENT_CLASSES.map((className) => <option key={className} value={className}>{className}</option>)}
+                    </select>
+                  </div>
+                </div>)}
+              </div>
+            </section>
+
             <div className="mt-6 flex justify-end gap-2">
-              <button
-                onClick={() => setAssigningTeam(null)}
-                className="btn-ghost !min-h-9 !px-3 text-xs"
-                disabled={busy}
-              >
-                إلغاء
-              </button>
-              <button
-                onClick={handleAssignSaintConfirm}
-                className="btn-gold !min-h-9 !px-4 text-xs"
-                disabled={!selectedSaintId || busy}
-              >
-                {busy ? 'جارٍ الحفظ…' : 'حفظ التعيين'}
-              </button>
+              <button onClick={() => { setEditingTeam(null); setEditPlayers([]); }} className="btn-ghost !min-h-9 !px-3 text-xs" disabled={busy}>إلغاء</button>
+              <button onClick={handleUpdateTeamConfirm} className="btn-gold !min-h-9 !px-4 text-xs" disabled={busy}>{busy ? 'جارٍ الحفظ…' : 'حفظ التعديلات'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation keeps a destructive action deliberate. */}
+      {deletingTeam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-danger/40 bg-midnight p-6 shadow-2xl">
+            <h2 className="font-heading text-lg font-bold text-danger">حذف فريق {deletingTeam.saint?.name_ar ?? `#${num(deletingTeam.team_number)}`}؟</h2>
+            <p className="mt-2 text-xs leading-5 text-ivory/75">هذا الإجراء نهائي. سيُحذف لاعبو التسجيل الجماعي، بينما يعود اللاعبون المسجلون فردياً إلى قائمة الانتظار.</p>
+            <p className="mt-2 text-xs leading-5 text-gold/90">لا يمكن حذف فريق موجود بالفعل في مجموعة أو مباراة، لحماية نتائج البطولة.</p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button onClick={() => setDeletingTeam(null)} className="btn-ghost !min-h-9 !px-3 text-xs" disabled={busy}>إلغاء</button>
+              <button onClick={handleDeleteTeamConfirm} className="btn !min-h-9 !px-4 bg-danger text-xs text-white hover:bg-danger/80" disabled={busy}>{busy ? 'جارٍ الحذف…' : 'حذف الفريق نهائياً'}</button>
             </div>
           </div>
         </div>
