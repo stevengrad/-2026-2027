@@ -29,6 +29,7 @@ interface MatchTeamData {
 interface AdminMatch {
   id: string;
   stage: Stage;
+  bracket_order: number | null;
   group_id: string | null;
   scheduled_at: string | null;
   status: MatchStatus;
@@ -120,7 +121,7 @@ export default function AdminMatches() {
       const { data, error } = await supabase
         .from('matches')
         .select(`
-          id, stage, group_id, scheduled_at, status, home_score, away_score, score_manual,
+          id, stage, bracket_order, group_id, scheduled_at, status, home_score, away_score, score_manual,
           decision, home_pens, away_pens, winner_team_id, home_team_id, away_team_id,
           home_team:teams!matches_home_team_id_fkey(
             id, team_number,
@@ -138,6 +139,7 @@ export default function AdminMatches() {
           )
         `)
         .order('stage')
+        .order('bracket_order', { ascending: true, nullsFirst: false })
         .order('scheduled_at', { ascending: true, nullsFirst: false });
 
       if (error) throw error;
@@ -471,6 +473,9 @@ export default function AdminMatches() {
                     <span className="font-heading font-semibold text-gold">
                       {STAGE_LABEL[m.stage]}
                     </span>
+                    {m.stage !== 'group' && m.bracket_order != null && (
+                      <span className="rounded bg-gold/10 px-2 py-0.5 text-[11px] text-gold">مباراة #{num(m.bracket_order)}</span>
+                    )}
                     {m.scheduled_at && (
                       <span>
                         · {dayLabel(m.scheduled_at)} — {timeLabel(m.scheduled_at)}
@@ -953,7 +958,7 @@ export default function AdminMatches() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-gold/40 bg-midnight p-6 shadow-2xl">
             <h2 className="font-heading text-lg font-bold text-gold">
-              تعيين أطراف المباراة ({STAGE_LABEL[assignMatch.stage]})
+              تعيين أطراف المباراة ({STAGE_LABEL[assignMatch.stage]}){assignMatch.bracket_order != null ? ` — #${num(assignMatch.bracket_order)}` : ''}
             </h2>
             <p className="mt-1 text-xs text-ivory/70">
               اختر الفرق المتأهلة لهذه المباراة من الفرق المعتمدة.

@@ -50,6 +50,37 @@ describe('standings', () => {
   });
 });
 
+
+describe('cross-group normalized comparison and bracket seeding metrics', () => {
+  it('normalizes points for 3-team and 4-team groups using points per match', () => {
+    const twoInTwo = { pts: 2, gd: 1, gf: 3, yellowCards: 1, redCards: 0, played: 2 };
+    const threeInThree = { pts: 3, gd: 2, gf: 5, yellowCards: 1, redCards: 0, played: 3 };
+    expect(T.normalizedPerThree(twoInTwo.pts, twoInTwo.played)).toBe(3);
+    expect(T.normalizedPerThree(threeInThree.pts, threeInThree.played)).toBe(3);
+    expect(T.compareNormalizedPerformance(twoInTwo, threeInThree)).toBeGreaterThan(0);
+  });
+  it('compares normalized goal difference, goals and fair play after points', () => {
+    const base = { pts: 3, gd: 0, gf: 3, yellowCards: 1, redCards: 0, played: 3 };
+    const betterGD = { ...base, gd: 2, played: 2, pts: 2, gf: 3 };
+    expect(T.compareNormalizedPerformance(betterGD, base)).toBeLessThan(0);
+    const moreCards = { ...base, yellowCards: 2 };
+    expect(T.compareNormalizedPerformance(base, moreCards)).toBeLessThan(0);
+  });
+  it('seeds group winners ahead of runners-up and third-place teams, with deterministic order within each tier', () => {
+    const teams = [
+      { id: 'c', saintName: 'C', groupPosition: 3, pts: 9, gd: 9, gf: 9, yellowCards: 0, redCards: 0, played: 3 },
+      { id: 'b', saintName: 'B', groupPosition: 1, pts: 2, gd: 0, gf: 2, yellowCards: 0, redCards: 0, played: 2 },
+      { id: 'a', saintName: 'A', groupPosition: 1, pts: 3, gd: 1, gf: 3, yellowCards: 0, redCards: 0, played: 3 },
+      { id: 'd', saintName: 'D', groupPosition: 2, pts: 9, gd: 9, gf: 9, yellowCards: 0, redCards: 0, played: 3 },
+    ];
+    expect(T.orderQualifiedSeeds(teams).map((team) => team.id)).toEqual(['a', 'b', 'd', 'c']);
+  });
+  it('uses exact ratio keys to detect equivalent records without rounding', () => {
+    expect(T.normalizedPerformanceKey({ pts: 2, gd: 0, gf: 4, yellowCards: 2, redCards: 0, played: 2 }))
+      .toBe(T.normalizedPerformanceKey({ pts: 3, gd: 0, gf: 6, yellowCards: 3, redCards: 0, played: 3 }));
+  });
+});
+
 describe('scorers', () => {
   it('excludes own goals, unattributed goals and cards', () => {
     const r = T.topScorers([

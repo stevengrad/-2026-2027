@@ -28,7 +28,14 @@ function useView<T>(key: string, view: string, order: string, ascending = true) 
   return useQuery({ queryKey: [key], enabled: !!supabase, ...LIVE,
     queryFn: async () => { const { data, error } = await supabase!.from(view).select('*').order(order, { ascending, nullsFirst: false }); if (error) throw error; return data as T[]; } });
 }
-export const usePublicMatches = () => useView<PublicMatch>('public_matches', 'public_matches', 'scheduled_at');
+export const usePublicMatches = () => useQuery({ queryKey: ['public_matches'], enabled: !!supabase, ...LIVE,
+  queryFn: async () => {
+    const { data, error } = await supabase!.from('public_matches').select('*')
+      .order('scheduled_at', { ascending: true, nullsFirst: false })
+      .order('bracket_order', { ascending: true, nullsFirst: false });
+    if (error) throw error;
+    return data as PublicMatch[];
+  } });
 export const useStandings = () => useView<Standing>('public_standings', 'public_group_standings', 'position');
 export const useScorers = () => useView<Scorer>('public_scorers', 'public_top_scorers', 'goals', false);
 export const useMatchEvents = (matchId?: string) => useQuery({ queryKey: ['match_events', matchId], enabled: !!supabase && !!matchId, ...LIVE,

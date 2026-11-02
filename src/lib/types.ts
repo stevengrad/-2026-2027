@@ -4,7 +4,7 @@ export const STAGE_LABEL: Record<Stage, string> = { group: 'دور المجمو�
 export const STATUS_LABEL: Record<MatchStatus, string> = { scheduled: 'لم تبدأ', live: 'جارية الآن', completed: 'انتهت', postponed: 'مؤجلة', cancelled: 'ملغاة' };
 
 export interface PublicMatch {
-  id: string; stage: Stage; group_id: string | null; scheduled_at: string | null; status: MatchStatus;
+  id: string; stage: Stage; group_id: string | null; scheduled_at: string | null; status: MatchStatus; bracket_order: number | null;
   home_score: number | null; away_score: number | null; decision: 'regular' | 'extra_time' | 'penalties' | null;
   home_pens: number | null; away_pens: number | null; winner_team_id: string | null;
   home_team_id: string | null; home_saint: string | null; home_portrait: string | null;

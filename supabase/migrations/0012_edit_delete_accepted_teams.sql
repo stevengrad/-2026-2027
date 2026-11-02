@@ -90,7 +90,7 @@ begin
 end $$;
 
 drop function if exists delete_team(uuid);
-create function delete_team(p_team uuid, p_force boolean default false)
+create or replace function delete_team(p_team uuid, p_force boolean default false)
 returns void language plpgsql security definer set search_path = public as $$
 declare
   t teams;

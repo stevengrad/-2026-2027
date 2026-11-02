@@ -100,6 +100,61 @@ export function standings(teams: string[], results: Result[]): Row[] {
 }
 
 export interface GoalEvent { type: 'goal' | 'yellow_card' | 'red_card'; playerId: string | null; isOwnGoal: boolean }
+/** Compare teams from groups with different numbers of matches on a per-match basis.
+ * Positive return means b ranks ahead of a.
+ */
+export interface GroupPerformance {
+  pts: number; gd: number; gf: number; yellowCards: number; redCards: number; played: number;
+}
+
+export function normalizedPerThree(value: number, played: number): number {
+  return played > 0 ? (value * 3) / played : 0;
+}
+
+function compareRateDescending(aValue: number, aPlayed: number, bValue: number, bPlayed: number) {
+  return bValue * aPlayed - aValue * bPlayed;
+}
+function compareRateAscending(aValue: number, aPlayed: number, bValue: number, bPlayed: number) {
+  return aValue * bPlayed - bValue * aPlayed;
+}
+
+export function compareNormalizedPerformance(a: GroupPerformance, b: GroupPerformance): number {
+  const ap = Math.max(1, a.played), bp = Math.max(1, b.played);
+  return compareRateDescending(a.pts, ap, b.pts, bp)
+    || compareRateDescending(a.gd, ap, b.gd, bp)
+    || compareRateDescending(a.gf, ap, b.gf, bp)
+    || compareRateAscending(a.yellowCards, ap, b.yellowCards, bp)
+    || compareRateAscending(a.redCards, ap, b.redCards, bp);
+}
+
+export interface QualifiedSeed extends GroupPerformance {
+  id: string; saintName: string; groupPosition: number;
+}
+
+/** Group winners are always seeded before runners-up, then third-place qualifiers.
+ * Within each tier, normalized performance determines the seed.
+ */
+export function orderQualifiedSeeds<T extends QualifiedSeed>(teams: readonly T[]): T[] {
+  return [...teams].sort((a, b) => a.groupPosition - b.groupPosition
+    || compareNormalizedPerformance(a, b)
+    || a.saintName.localeCompare(b.saintName, 'ar')
+    || a.id.localeCompare(b.id));
+}
+
+function gcd(a: number, b: number): number {
+  a = Math.abs(a); b = Math.abs(b);
+  while (b) [a, b] = [b, a % b];
+  return a || 1;
+}
+
+/** Stable key for detecting equal normalized records without floating-point rounding. */
+export function normalizedPerformanceKey(team: GroupPerformance): string {
+  const played = Math.max(1, team.played);
+  return [team.pts, team.gd, team.gf, team.yellowCards, team.redCards]
+    .map((value) => { const divisor = gcd(value, played); return `${value / divisor}/${played / divisor}`; })
+    .join('|');
+}
+
 export function topScorers(events: GoalEvent[]) {
   const c = new Map<string, number>();
   for (const e of events) if (e.type === 'goal' && !e.isOwnGoal && e.playerId) c.set(e.playerId, (c.get(e.playerId) ?? 0) + 1);
