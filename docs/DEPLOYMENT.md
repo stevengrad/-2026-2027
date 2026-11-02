@@ -37,11 +37,7 @@
    supabase secrets set ALLOWED_ORIGINS=https://YOUR_GITHUB_NAME.github.io
    ```
 
-   بعد معرفة اسم المستودع، أضف أيضاً عنوان المشروع الكامل إلى `ALLOWED_ORIGINS`، مفصولاً بفاصلة:
-
-   ```text
-   https://YOUR_GITHUB_NAME.github.io,https://YOUR_GITHUB_NAME.github.io/YOUR_REPOSITORY
-   ```
+   مهم: استخدم origin فقط، ولا تضف اسم المستودع إلى `ALLOWED_ORIGINS`. المتصفح يرسل `https://YOUR_GITHUB_NAME.github.io` كـ Origin حتى عندما يكون الموقع داخل مسار مستودع.
 
 ## 2. أضف قائمة القديسين والصور المرخّصة
 
