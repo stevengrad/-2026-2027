@@ -1,23 +1,76 @@
-// Admin-only. Uses caller's JWT for RLS and is_admin() checks.
+// Admin-only knockout generation. Qualification is computed only after every
+// group match is complete, with fair-play cards and penalty tiebreaks included.
 import { z } from 'npm:zod@3';
 import { cors, dbError, json, userClient } from '../_shared/http.ts';
 import { bracketPairings } from '../_shared/tournament.ts';
 
+type TargetSize = 2 | 4 | 8 | 16 | 32 | 64;
+type Stage = 'round_of_64' | 'round_of_32' | 'round_of_16' | 'quarter_final' | 'semi_final' | 'final';
+
 const body = z.object({
   action: z.enum(['preview', 'execute']),
-  qualifiersPerGroup: z.number().int().min(1).max(4).default(2),
-  customTeamIds: z.array(z.string().uuid()).optional(),
+  targetSize: z.union([z.literal(2), z.literal(4), z.literal(8), z.literal(16), z.literal(32), z.literal(64)]),
+  penaltyTiebreaks: z.array(z.object({
+    key: z.string().min(1).max(200),
+    rankings: z.array(z.object({ teamId: z.string().uuid(), rank: z.number().int().min(1).max(64) })).min(2).max(64),
+  })).max(32).default([]),
   includeThirdPlace: z.boolean().default(true),
   clearExisting: z.boolean().default(false),
 }).strict();
 
-type Stage = 'round_of_16' | 'quarter_final' | 'semi_final' | 'final';
+interface TeamStanding {
+  id: string; groupId: string; groupName: string; saintName: string; portraitPath: string | null;
+  pts: number; gd: number; gf: number; yellowCards: number; redCards: number;
+}
+interface QualificationTeam extends TeamStanding { seed: number; qualification: string }
+interface TieBreak {
+  key: string; label: string;
+  teams: Pick<TeamStanding, 'id' | 'saintName' | 'pts' | 'gd' | 'gf' | 'yellowCards' | 'redCards'>[];
+  resolved: boolean;
+}
 
-function getStagesForSize(size: number): Stage[] {
-  if (size === 16) return ['round_of_16', 'quarter_final', 'semi_final', 'final'];
-  if (size === 8) return ['quarter_final', 'semi_final', 'final'];
-  if (size === 4) return ['semi_final', 'final'];
+function stagesFor(targetSize: TargetSize): Stage[] {
+  if (targetSize === 64) return ['round_of_64', 'round_of_32', 'round_of_16', 'quarter_final', 'semi_final', 'final'];
+  if (targetSize === 32) return ['round_of_32', 'round_of_16', 'quarter_final', 'semi_final', 'final'];
+  if (targetSize === 16) return ['round_of_16', 'quarter_final', 'semi_final', 'final'];
+  if (targetSize === 8) return ['quarter_final', 'semi_final', 'final'];
+  if (targetSize === 4) return ['semi_final', 'final'];
   return ['final'];
+}
+
+function placeLabel(position: number, best: boolean) {
+  const label = position === 1 ? 'متصدر المجموعة' : position === 2 ? 'وصيف المجموعة' : `المركز ${position}`;
+  return best ? `أفضل فرق ${label}` : label;
+}
+function metricKey(team: TeamStanding) { return `${team.pts}|${team.gd}|${team.gf}|${team.yellowCards}|${team.redCards}`; }
+/** Points, goal difference and goals-for descend. Fewer cards is better. */
+function compareMetrics(a: TeamStanding, b: TeamStanding) {
+  return b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.yellowCards - b.yellowCards || a.redCards - b.redCards;
+}
+function fallbackOrder(a: TeamStanding, b: TeamStanding) { return a.saintName.localeCompare(b.saintName, 'ar') || a.id.localeCompare(b.id); }
+
+function rankTiedTeams(
+  teams: TeamStanding[], scope: string, label: string, penaltyRanks: Map<string, Map<string, number>>,
+  ties: Map<string, TieBreak>,
+) {
+  const metricSorted = [...teams].sort((a, b) => compareMetrics(a, b) || fallbackOrder(a, b));
+  const ranked: TeamStanding[] = [];
+  for (let start = 0; start < metricSorted.length;) {
+    let end = start + 1;
+    while (end < metricSorted.length && metricKey(metricSorted[end]) === metricKey(metricSorted[start])) end++;
+    const cluster = metricSorted.slice(start, end);
+    if (cluster.length > 1) {
+      const key = `${scope}:${metricKey(cluster[0])}`;
+      const ranks = penaltyRanks.get(key);
+      const hasEveryRank = cluster.every((team) => ranks?.has(team.id));
+      const resolved = Boolean(hasEveryRank && new Set(cluster.map((team) => ranks!.get(team.id))).size === cluster.length);
+      ties.set(key, { key, label, teams: cluster.map(({ id, saintName, pts, gd, gf, yellowCards, redCards }) => ({ id, saintName, pts, gd, gf, yellowCards, redCards })), resolved });
+      cluster.sort((a, b) => resolved ? ranks!.get(a.id)! - ranks!.get(b.id)! : fallbackOrder(a, b));
+    }
+    ranked.push(...cluster);
+    start = end;
+  }
+  return ranked;
 }
 
 Deno.serve(async (req) => {
@@ -29,190 +82,118 @@ Deno.serve(async (req) => {
   const db = userClient(req);
   const { data: admin } = await db.rpc('is_admin');
   if (admin !== true) return json(req, { error: 'forbidden', message: 'غير مصرّح لك بهذا الإجراء.' }, 403);
+  const { data: tournament } = await db.from('tournaments').select('id').limit(1).single();
+  if (!tournament) return json(req, { error: 'server_error', message: 'البطولة غير مُعدّة بعد.' }, 500);
 
-  const { data: t } = await db.from('tournaments').select('id').limit(1).single();
-  if (!t) return json(req, { error: 'server_error', message: 'البطولة غير مُعدّة بعد.' }, 500);
-
-  // Check existing knockout matches
-  const { data: existingMatches, error: eExist } = await db
-    .from('matches')
-    .select('id, stage, status')
-    .eq('tournament_id', t.id)
-    .neq('stage', 'group');
-
-  if (eExist) return dbError(req, eExist.message);
-
-  const hasCompleted = (existingMatches ?? []).some((m) => m.status === 'completed');
-  if (hasCompleted && !parsed.data.clearExisting) {
-    return json(req, {
-      error: 'knockout_locked_results_exist',
-      message: 'توجد مباريات إقصائية منتهية بالفعل. يلزم تأكيد الحذف لإعادة الإنشاء.',
-    }, 409);
+  const { data: groupMatches, error: groupMatchesError } = await db.from('matches').select('id, status').eq('tournament_id', tournament.id).eq('stage', 'group');
+  if (groupMatchesError) return dbError(req, groupMatchesError.message);
+  if (!groupMatches?.length || groupMatches.some((match) => match.status !== 'completed')) {
+    return json(req, { error: 'groups_not_finished', message: 'لا يمكن إنشاء الأدوار الإقصائية قبل انتهاء وتسجيل نتائج كل مباريات المجموعات.' }, 422);
   }
 
-  // Get qualified teams
-  interface QualifiedTeam {
-    id: string;
-    teamNumber?: number;
-    saintName: string;
-    portraitPath: string | null;
-    seed: number;
+  const { data: rawStandings, error: standingsError } = await db.from('public_group_standings')
+    .select('group_id, group_name, team_id, saint_name_ar, portrait_path, pts, gd, gf');
+  if (standingsError) return dbError(req, standingsError.message);
+  if (!rawStandings?.length || rawStandings.length < parsed.data.targetSize) {
+    return json(req, { error: 'target_size_exceeds_teams', message: `لا يوجد عدد كافٍ من فرق المجموعات لاختيار ${parsed.data.targetSize} فريقاً.` }, 422);
   }
 
-  let qualifiedTeams: QualifiedTeam[] = [];
-
-  if (parsed.data.customTeamIds && parsed.data.customTeamIds.length >= 2) {
-    const { data: teams, error: eT } = await db
-      .from('teams')
-      .select('id, team_number, saint:saints(id, name_ar, portrait_path)')
-      .in('id', parsed.data.customTeamIds)
-      .eq('status', 'approved');
-
-    if (eT) return dbError(req, eT.message);
-    const teamMap = new Map((teams ?? []).map((tm) => [tm.id, tm]));
-
-    qualifiedTeams = parsed.data.customTeamIds.map((id, index) => {
-      const tm = teamMap.get(id);
-      const saint = Array.isArray(tm?.saint) ? tm.saint[0] : tm?.saint;
-      return {
-        id,
-        teamNumber: tm?.team_number,
-        saintName: saint?.name_ar ?? 'فريق',
-        portraitPath: saint?.portrait_path ?? null,
-        seed: index + 1,
-      };
-    });
-  } else {
-    // Get from group standings
-    const { data: standings, error: eS } = await db
-      .from('public_group_standings')
-      .select('group_id, group_name, team_id, saint_name_ar, portrait_path, position, pts, gd, gf')
-      .lte('position', parsed.data.qualifiersPerGroup)
-      .order('position')
-      .order('pts', { ascending: false })
-      .order('gd', { ascending: false })
-      .order('gf', { ascending: false });
-
-    if (eS) return dbError(req, eS.message);
-
-    if (!standings || standings.length < 2) {
-      return json(req, {
-        error: 'not_enough_qualifiers',
-        message: 'يلزم فريقان على الأقل للتأهل إلى الأدوار الإقصائية.',
-      }, 422);
-    }
-
-    qualifiedTeams = standings.map((s, index) => ({
-      id: s.team_id,
-      saintName: s.saint_name_ar,
-      portraitPath: s.portrait_path,
-      seed: index + 1,
-    }));
+  const { data: cardEvents, error: cardError } = await db.from('match_events').select('team_id, event_type')
+    .in('match_id', groupMatches.map((match) => match.id)).in('event_type', ['yellow_card', 'red_card']);
+  if (cardError) return dbError(req, cardError.message);
+  const cards = new Map<string, { yellow: number; red: number }>();
+  for (const event of cardEvents ?? []) {
+    const count = cards.get(event.team_id) ?? { yellow: 0, red: 0 };
+    if (event.event_type === 'yellow_card') count.yellow++;
+    if (event.event_type === 'red_card') count.red++;
+    cards.set(event.team_id, count);
   }
+  const penaltyRanks = new Map<string, Map<string, number>>();
+  for (const tiebreak of parsed.data.penaltyTiebreaks) penaltyRanks.set(tiebreak.key, new Map(tiebreak.rankings.map((ranking) => [ranking.teamId, ranking.rank])));
 
-  if (qualifiedTeams.length < 2) {
-    return json(req, {
-      error: 'not_enough_qualifiers',
-      message: 'يلزم فريقان على الأقل لإنشاء الأدوار الإقصائية.',
-    }, 422);
-  }
-
-  const pairings = bracketPairings(qualifiedTeams.length);
-  const stages = getStagesForSize(pairings.size);
-  const teamBySeed = new Map(qualifiedTeams.map((q) => [q.seed, q]));
-
-  // First round matchups
-  const firstRoundMatches = pairings.pairs.map(([seedA, seedB], idx) => {
-    const teamA = teamBySeed.get(seedA) ?? null;
-    const teamB = teamBySeed.get(seedB) ?? null;
-    return {
-      matchNumber: idx + 1,
-      stage: stages[0],
-      seedA,
-      seedB,
-      homeTeam: teamA,
-      awayTeam: teamB,
-      isBye: !teamA || !teamB,
+  const groups = new Map<string, TeamStanding[]>();
+  for (const row of rawStandings) {
+    const rowCards = cards.get(row.team_id) ?? { yellow: 0, red: 0 };
+    const standing: TeamStanding = {
+      id: row.team_id, groupId: row.group_id, groupName: row.group_name, saintName: row.saint_name_ar, portraitPath: row.portrait_path ?? null,
+      pts: Number(row.pts), gd: Number(row.gd), gf: Number(row.gf), yellowCards: rowCards.yellow, redCards: rowCards.red,
     };
-  });
-
-  if (parsed.data.action === 'preview') {
-    return json(req, {
-      qualifiedCount: qualifiedTeams.length,
-      bracketSize: pairings.size,
-      byes: pairings.byes,
-      stages,
-      firstRoundStage: stages[0],
-      firstRoundMatches,
-      includeThirdPlace: parsed.data.includeThirdPlace,
-    });
+    groups.set(standing.groupId, [...(groups.get(standing.groupId) ?? []), standing]);
   }
 
-  // EXECUTE:
-  // 1. Clear existing knockout matches
-  if ((existingMatches ?? []).length > 0) {
-    const ids = existingMatches!.map((m) => m.id);
-    await db.from('match_events').delete().in('match_id', ids);
-    const { error: eDel } = await db.from('matches').delete().in('id', ids);
-    if (eDel) return dbError(req, eDel.message);
-  }
+  const groupCount = groups.size;
+  const maxRelevantPosition = Math.max(1, Math.ceil(parsed.data.targetSize / groupCount));
+  const ties = new Map<string, TieBreak>();
+  const groupRankings = [...groups.values()].map((group) => rankTiedTeams(
+    group, `group:${group[0].groupId}`, `ترتيب ${group[0].groupName}`, penaltyRanks, ties,
+  ));
 
-  // 2. Build and insert match rows
-  interface MatchInsert {
-    tournament_id: string;
-    stage: Stage | 'third_place';
-    home_team_id: string | null;
-    away_team_id: string | null;
-    status: 'scheduled';
-  }
-
-  const toInsert: MatchInsert[] = [];
-
-  // Round 1
-  for (const match of firstRoundMatches) {
-    toInsert.push({
-      tournament_id: t.id,
-      stage: stages[0],
-      home_team_id: match.homeTeam?.id ?? null,
-      away_team_id: match.awayTeam?.id ?? null,
-      status: 'scheduled',
-    });
-  }
-
-  // Subsequent rounds
-  let matchCountForStage = pairings.size / 4;
-  for (let s = 1; s < stages.length; s++) {
-    const stageName = stages[s];
-    for (let m = 0; m < matchCountForStage; m++) {
-      toInsert.push({
-        tournament_id: t.id,
-        stage: stageName,
-        home_team_id: null,
-        away_team_id: null,
-        status: 'scheduled',
-      });
+  const selected: Array<{ team: TeamStanding; qualification: string }> = [];
+  let remaining = parsed.data.targetSize;
+  for (let position = 0; remaining > 0 && position < maxRelevantPosition; position++) {
+    const candidates = groupRankings.map((group) => group[position]).filter((team): team is TeamStanding => Boolean(team));
+    if (!candidates.length) continue;
+    if (remaining >= candidates.length) {
+      selected.push(...candidates.map((team) => ({ team, qualification: placeLabel(position + 1, false) })));
+      remaining -= candidates.length;
+    } else {
+      const best = rankTiedTeams(candidates, `best:${position + 1}`, `مقارنة أفضل فرق ${placeLabel(position + 1, false)}`, penaltyRanks, ties);
+      selected.push(...best.slice(0, remaining).map((team) => ({ team, qualification: placeLabel(position + 1, true) })));
+      remaining = 0;
     }
-    matchCountForStage = matchCountForStage / 2;
   }
+  if (remaining > 0) return json(req, { error: 'not_enough_qualifiers', message: 'لا يوجد عدد كافٍ من الفرق المؤهلة للحجم المختار.' }, 422);
 
-  // Third place match
-  if (parsed.data.includeThirdPlace && pairings.size >= 4) {
-    toInsert.push({
-      tournament_id: t.id,
-      stage: 'third_place',
-      home_team_id: null,
-      away_team_id: null,
-      status: 'scheduled',
-    });
-  }
-
-  const { data: inserted, error: eIns } = await db.from('matches').insert(toInsert).select('id, stage');
-  if (eIns) return dbError(req, eIns.message);
-
-  return json(req, {
-    ok: true,
-    bracketSize: pairings.size,
-    stages,
-    matchesCreated: inserted?.length ?? 0,
+  // Tie-break penalties are mandatory only where a tie changes qualification, not merely seeding.
+  const qualifiedTeams: QualificationTeam[] = [...selected].sort((a, b) => compareMetrics(a.team, b.team) || fallbackOrder(a.team, b.team))
+    .map(({ team, qualification }, index) => ({ ...team, qualification, seed: index + 1 }));
+  const selectedIds = new Set(qualifiedTeams.map((team) => team.id));
+  const tiebreaks = [...ties.values()].filter((tie) => {
+    const selectedFromTie = tie.teams.filter((team) => selectedIds.has(team.id)).length;
+    return selectedFromTie > 0 && selectedFromTie < tie.teams.length;
   });
+  const unresolved = tiebreaks.filter((tie) => !tie.resolved);
+
+  const { data: existingMatches, error: existingError } = await db.from('matches').select('id, stage, status')
+    .eq('tournament_id', tournament.id).neq('stage', 'group');
+  if (existingError) return dbError(req, existingError.message);
+  if ((existingMatches ?? []).some((match) => match.status === 'completed') && !parsed.data.clearExisting) {
+    return json(req, { error: 'knockout_locked_results_exist', message: 'توجد مباريات إقصائية منتهية بالفعل. يلزم تأكيد الحذف لإعادة الإنشاء.' }, 409);
+  }
+
+  const targetSize = parsed.data.targetSize as TargetSize;
+  const pairings = bracketPairings(qualifiedTeams.length);
+  const stages = stagesFor(targetSize);
+  const teamBySeed = new Map(qualifiedTeams.map((team) => [team.seed, team]));
+  const firstRoundMatches = pairings.pairs.map(([seedA, seedB], index) => ({
+    matchNumber: index + 1, stage: stages[0], seedA, seedB,
+    homeTeam: teamBySeed.get(seedA) ?? null, awayTeam: teamBySeed.get(seedB) ?? null, isBye: false,
+  }));
+  const preview = {
+    targetSize, groupCount, qualifiedCount: qualifiedTeams.length, bracketSize: pairings.size, byes: 0, stages,
+    firstRoundStage: stages[0], firstRoundMatches, qualifiedTeams, tiebreaks, canExecute: unresolved.length === 0,
+    includeThirdPlace: parsed.data.includeThirdPlace,
+  };
+  if (parsed.data.action === 'preview') return json(req, preview);
+  if (unresolved.length > 0) return json(req, { error: 'penalty_tiebreak_required', message: 'سجّل ترتيب ركلات الترجيح لكل تعادل مؤثر قبل إنشاء الشجرة.', tiebreaks }, 422);
+
+  if ((existingMatches ?? []).length > 0) {
+    const ids = existingMatches!.map((match) => match.id);
+    await db.from('match_events').delete().in('match_id', ids);
+    const { error: deleteError } = await db.from('matches').delete().in('id', ids);
+    if (deleteError) return dbError(req, deleteError.message);
+  }
+  interface MatchInsert { tournament_id: string; stage: Stage | 'third_place'; home_team_id: string | null; away_team_id: string | null; status: 'scheduled' }
+  const matches: MatchInsert[] = firstRoundMatches.map((match) => ({
+    tournament_id: tournament.id, stage: stages[0], home_team_id: match.homeTeam?.id ?? null, away_team_id: match.awayTeam?.id ?? null, status: 'scheduled',
+  }));
+  let matchesAtStage = targetSize / 4;
+  for (let stageIndex = 1; stageIndex < stages.length; stageIndex++) {
+    for (let match = 0; match < matchesAtStage; match++) matches.push({ tournament_id: tournament.id, stage: stages[stageIndex], home_team_id: null, away_team_id: null, status: 'scheduled' });
+    matchesAtStage /= 2;
+  }
+  if (parsed.data.includeThirdPlace && targetSize >= 4) matches.push({ tournament_id: tournament.id, stage: 'third_place', home_team_id: null, away_team_id: null, status: 'scheduled' });
+  const { data: inserted, error: insertError } = await db.from('matches').insert(matches).select('id, stage');
+  if (insertError) return dbError(req, insertError.message);
+  return json(req, { ok: true, ...preview, matchesCreated: inserted?.length ?? 0 });
 });

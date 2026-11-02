@@ -3,7 +3,7 @@ import { Empty, ErrorNote, Skeleton } from '../components/ui/States';
 import { usePublicMatches } from '../hooks/useTournament';
 import { STAGE_LABEL, type PublicMatch, type Stage } from '../lib/types';
 
-const ROUNDS: Stage[] = ['round_of_16', 'quarter_final', 'semi_final', 'final'];
+const ROUNDS: Stage[] = ['round_of_64', 'round_of_32', 'round_of_16', 'quarter_final', 'semi_final', 'final'];
 
 export default function Knockout() {
   const { data, isLoading, isError } = usePublicMatches();

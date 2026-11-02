@@ -1,6 +1,6 @@
-export type Stage = 'group' | 'round_of_16' | 'quarter_final' | 'semi_final' | 'third_place' | 'final';
+export type Stage = 'group' | 'round_of_64' | 'round_of_32' | 'round_of_16' | 'quarter_final' | 'semi_final' | 'third_place' | 'final';
 export type MatchStatus = 'scheduled' | 'live' | 'completed' | 'postponed' | 'cancelled';
-export const STAGE_LABEL: Record<Stage, string> = { group: 'دور المجموعات', round_of_16: 'دور الـ١٦', quarter_final: 'ربع النهائي', semi_final: 'نصف النهائي', third_place: 'مباراة المركز الثالث', final: 'النهائي' };
+export const STAGE_LABEL: Record<Stage, string> = { group: 'دور المجموعات', round_of_64: 'دور الـ٦٤', round_of_32: 'دور الـ٣٢', round_of_16: 'دور الـ١٦', quarter_final: 'ربع النهائي', semi_final: 'نصف النهائي', third_place: 'مباراة المركز الثالث', final: 'النهائي' };
 export const STATUS_LABEL: Record<MatchStatus, string> = { scheduled: 'لم تبدأ', live: 'جارية الآن', completed: 'انتهت', postponed: 'مؤجلة', cancelled: 'ملغاة' };
 
 export interface PublicMatch {
