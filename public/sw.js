@@ -1,9 +1,11 @@
 /* A small, network-first shell cache. Supabase data is never cached here. */
-const CACHE = 'anbia-shell-v1';
+const CACHE = 'anbia-shell-v2';
 const shellUrl = new URL('./index.html', self.location).pathname;
 
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (event) => event.waitUntil(
+  caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()),
+));
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
