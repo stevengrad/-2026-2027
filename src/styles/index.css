@@ -1,0 +1,27 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+@layer base {
+  html { @apply bg-midnight text-ivory font-body antialiased; scroll-behavior: smooth; }
+  body { min-width: 320px; }
+  h1, h2, h3 { @apply font-heading; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-gold; }
+  ::selection { background: rgb(198 165 104 / .35); }
+}
+@layer components {
+  .btn { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-6 font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-gold { @apply btn bg-gold text-midnight shadow-lg shadow-gold/20 hover:bg-gold-soft hover:shadow-gold/30; }
+  .btn-ghost { @apply btn border border-ivory/25 text-ivory hover:border-gold hover:text-gold; }
+  .card { @apply rounded-2xl border border-ivory/10 bg-emerald/70 p-5 transition duration-300 hover:-translate-y-0.5 hover:border-gold/40; }
+  .panel { @apply rounded-2xl border border-ivory/10 bg-emerald/50 backdrop-blur-sm; }
+  .field { @apply min-h-11 w-full rounded-xl border border-ivory/20 bg-midnight/60 px-4 text-ivory placeholder:text-muted focus:border-gold; }
+  .h-section { @apply text-2xl font-extrabold sm:text-4xl; }
+  /* jersey-style gold tag: slanted edge, bold */
+  .tag { @apply inline-flex items-center gap-2 bg-gold px-4 py-1.5 font-heading text-sm font-extrabold text-midnight; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
+  /* Cross lattice: small gold crosses in a staggered grid (original geometry) */
+  .pattern { background-image: radial-gradient(circle at 1px 1px, rgb(198 165 104 / .12) 1px, transparent 0); background-size: 22px 22px; }
+  .pattern-cross { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cpath fill='%23C6A568' fill-opacity='.13' d='M16 10h4v5h5v4h-5v9h-4v-9h-5v-4h5zM52 46h4v5h5v4h-5v9h-4v-9h-5v-4h5z'/%3E%3C/svg%3E"); background-size: 72px 72px; }
+  .pitch-stripes { background: repeating-linear-gradient(90deg, rgb(255 255 255 / .035) 0 56px, transparent 56px 112px), linear-gradient(180deg, #18423A, #102D25); }
+  .gold-sheen { background: linear-gradient(110deg, #C6A568 20%, #F3E4B8 40%, #C6A568 60%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .num { font-variant-numeric: tabular-nums; }
+}
+.lights { background: radial-gradient(60% 50% at 20% 0%, rgb(243 239 229 / .16), transparent 70%), radial-gradient(60% 50% at 80% 0%, rgb(198 165 104 / .14), transparent 70%); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

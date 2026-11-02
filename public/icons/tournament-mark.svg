@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="دوري أنبياء">
+  <rect width="512" height="512" rx="112" fill="#102D25"/>
+  <rect x="28" y="28" width="456" height="456" rx="92" fill="none" stroke="#C6A568" stroke-width="18"/>
+  <path d="M224 72h64v96h96v64h-96v208h-64V232h-96v-64h96z" fill="#C6A568"/>
+  <circle cx="256" cy="350" r="66" fill="#101820" stroke="#F3EFE5" stroke-width="10"/>
+  <path d="m256 306 26 19-10 31h-32l-10-31zm-48 37 31 10 7 30-26 18-26-18zm96 0 14 40-26 18-26-18 7-30zm-70 80 22-16 22 16-8 27h-28z" fill="#C6A568"/>
+</svg>

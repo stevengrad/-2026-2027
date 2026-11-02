@@ -1,0 +1,14 @@
+# Public registration endpoints are called by anonymous visitors (protected by Turnstile + rate limit + DB checks).
+[functions.register-team]
+verify_jwt = false
+[functions.register-player]
+verify_jwt = false
+# Admin endpoints keep verify_jwt = true (default) AND check is_admin() inside.
+[functions.generate-teams]
+verify_jwt = true
+[functions.generate-groups]
+verify_jwt = true
+[functions.generate-knockout]
+verify_jwt = true
+[functions.manage-match]
+verify_jwt = true

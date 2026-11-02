@@ -1,0 +1,20 @@
+{
+  "name": "دوري كرة القدم لأسرة أنبياء 2026/2027",
+  "short_name": "دوري أنبياء",
+  "description": "متابعة وتسجيل فرق دوري كرة القدم لأسرة أنبياء.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101820",
+  "theme_color": "#101820",
+  "icons": [
+    {
+      "src": "./icons/tournament-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
