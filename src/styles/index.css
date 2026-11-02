@@ -1,5 +1,14 @@
 @tailwind base; @tailwind components; @tailwind utilities;
 @layer base {
+  /* Dark UI: native form controls and scrollbars follow the dark theme; scrollbars are emerald + antique gold. */
+  :root { color-scheme: dark; scrollbar-width: thin; scrollbar-color: #A68B57 #0F241E; }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: #0F241E; border-radius: 999px; }
+  ::-webkit-scrollbar-thumb { background: #A68B57; border-radius: 999px; border: 3px solid #0F241E; }
+  ::-webkit-scrollbar-thumb:hover { background: #C6A568; }
+  ::-webkit-scrollbar-corner { background: transparent; }
+}
+@layer base {
   html { @apply bg-midnight text-ivory font-body antialiased; scroll-behavior: smooth; }
   body { min-width: 320px; }
   h1, h2, h3 { @apply font-heading; }

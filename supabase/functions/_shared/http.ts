@@ -70,7 +70,7 @@ export const teamSchema = z.object({
 }).strict();
 export const individualSchema = z.object({ name: arabicName, class: className, ...base }).strict();
 
-/** Shared pipeline for public endpoints: method -> validate -> rate limit -> captcha -> run (service role). */
+/** Shared pipeline for public endpoints: method -> validate -> captcha -> rate limit -> run (service role). */
 export function publicEndpoint<S extends z.ZodTypeAny>(
   schema: S, bucket: string, perHour: number,
   run: (db: ReturnType<typeof serviceClient>, input: z.infer<S>, tournamentId: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
@@ -83,9 +83,11 @@ export function publicEndpoint<S extends z.ZodTypeAny>(
       issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) }, 400);
     const ip = (req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim();
     const db = serviceClient();
-    const { data: ok } = await db.rpc('rate_limit_hit', { p_key: `${bucket}:${await sha256(ip)}`, p_max: perHour, p_window: '1 hour' });
-    if (!ok) return json(req, { error: 'rate_limited', message: 'محاولات كثيرة، حاول لاحقاً.' }, 429);
     if (!(await verifyTurnstile(parsed.data.turnstileToken, ip))) return json(req, { error: 'captcha_failed', message: 'فشل التحقق الأمني، أعد المحاولة.' }, 403);
+    // Turnstile is the main bot defence, so it runs first: failed captchas never use up a real visitor's quota.
+    // The per-IP cap is only a safety net and is generous because many people share one IP (church Wi-Fi, mobile carrier NAT).
+    const { data: ok } = await db.rpc('rate_limit_hit', { p_key: `${bucket}:${await sha256(ip)}`, p_max: perHour, p_window: '1 hour' });
+    if (!ok) return json(req, { error: 'rate_limited', message: 'محاولات كثيرة من هذه الشبكة، انتظر قليلاً ثم حاول مرة أخرى.' }, 429);
     const { data: t } = await db.from('tournaments').select('id').limit(1).single();
     if (!t) return json(req, { error: 'server_error', message: 'البطولة غير مُعدّة بعد.' }, 500);
     const { data, error } = await run(db, parsed.data, t.id);
