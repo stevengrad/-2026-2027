@@ -19,6 +19,7 @@ import AdminLogin from '../pages/Admin/AdminLogin';
 import AdminGuard from '../pages/Admin/AdminGuard';
 import AdminShell from '../pages/Admin/AdminShell';
 import AdminTeams from '../pages/Admin/AdminTeams';
+import AdminAcceptedTeams from '../pages/Admin/AdminAcceptedTeams';
 import AdminAutoTeams from '../pages/Admin/AdminAutoTeams';
 import AdminGroups from '../pages/Admin/AdminGroups';
 import AdminKnockout from '../pages/Admin/AdminKnockout';
@@ -62,6 +63,7 @@ export default function App() {
             <Route element={<AdminShell />}>
               <Route index element={<Navigate to={adminPath('teams')} replace />} />
               <Route path="teams" element={<AdminTeams />} />
+              <Route path="accepted-teams" element={<AdminAcceptedTeams />} />
               <Route path="auto-teams" element={<AdminAutoTeams />} />
               <Route path="groups" element={<AdminGroups />} />
               <Route path="knockout" element={<AdminKnockout />} />

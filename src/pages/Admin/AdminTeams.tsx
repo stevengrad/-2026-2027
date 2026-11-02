@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   CheckCircle,
@@ -14,6 +15,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { adminPath } from '../../lib/adminRoute';
 import { SaintAvatar } from '../../components/ui/SaintAvatar';
 import { Empty, ErrorNote, Skeleton } from '../../components/ui/States';
 import { dayLabel, num, timeLabel } from '../../lib/format';
@@ -48,8 +50,12 @@ interface EditablePlayer {
   source: AdminPlayer['source'];
 }
 
-export default function AdminTeams() {
+/** `review` = new requests + rejected (before acceptance). `accepted` = the dedicated accepted-teams tab (after acceptance).
+ *  Both modes can edit and delete teams. */
+export default function AdminTeams({ mode = 'review' }: { mode?: 'review' | 'accepted' }) {
+  const accepted = mode === 'accepted';
   const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const activeFilter = accepted ? 'approved' : filter;
   const [search, setSearch] = useState('');
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
 
@@ -63,6 +69,7 @@ export default function AdminTeams() {
   const [editSaintId, setEditSaintId] = useState('');
   const [editPlayers, setEditPlayers] = useState<EditablePlayer[]>([]);
   const [deletingTeam, setDeletingTeam] = useState<AdminTeam | null>(null);
+  const [deleteNeedsForce, setDeleteNeedsForce] = useState(false);
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -103,6 +110,10 @@ export default function AdminTeams() {
     },
   });
 
+  // The team's current saint must stay selectable even if it was deactivated after the team was created.
+  const editorSaints = [...(saints ?? [])];
+  if (editingTeam?.saint && !editorSaints.some((x) => x.id === editingTeam.saint!.id)) editorSaints.unshift({ id: editingTeam.saint.id, name_ar: editingTeam.saint.name_ar });
+
   const clearMessages = () => {
     setActionError(null);
     setActionSuccess(null);
@@ -123,7 +134,9 @@ export default function AdminTeams() {
 
   const describeActionError = (e: unknown, fallback: string) => {
     const message = e instanceof Error ? e.message : '';
-    if (message.includes('team_in_competition')) return 'لا يمكن تعديل أو حذف فريق بعد إدراجه في المجموعات أو المباريات. حافظنا على سجل البطولة كما هو.';
+    if (message.includes('player_has_events')) return 'لا يمكن إزالة لاعب سُجِّلت له أهداف أو بطاقات في مباراة. عدّل اسمه فقط أو احتفظ به في القائمة.';
+    if (message.includes('team_has_results')) return 'لا يمكن حذف فريق لعب مباريات منتهية، حفاظاً على نتائج البطولة.';
+    if (message.includes('team_in_knockout')) return 'الفريق ضمن شجرة الأدوار الإقصائية. أعد إنشاء الشجرة أولاً ثم احذف الفريق.';
     if (message.includes('team_not_editable')) return 'لا يمكن تعديل فريق مرفوض. احذفه إذا أردت إزالته نهائياً.';
     if (message.includes('saint_taken')) return 'هذا القديس محجوز لفريق آخر بالفعل.';
     if (message.includes('invalid_player_count')) return 'يجب أن تضم القائمة من ٤ إلى ٧ لاعبين.';
@@ -143,7 +156,7 @@ export default function AdminTeams() {
     try {
       const { error } = await supabase!.rpc('approve_team', { p_team: team.id });
       if (error) throw error;
-      setActionSuccess(`تم اعتماد فريق "${team.saint.name_ar}" بنجاح.`);
+      setActionSuccess(`تم اعتماد فريق "${team.saint.name_ar}" بنجاح. يمكنك تعديله أو حذفه من تبويب «الفرق المقبولة».`);
       refetch();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'تعذّر اعتماد الفريق.';
@@ -198,7 +211,7 @@ export default function AdminTeams() {
         })),
       });
       if (error) throw error;
-      const saintName = saints?.find((saint) => saint.id === editSaintId)?.name_ar ?? 'الفريق';
+      const saintName = editorSaints.find((saint) => saint.id === editSaintId)?.name_ar ?? 'الفريق';
       setActionSuccess(`تم حفظ تعديلات فريق "${saintName}" بنجاح.`);
       setEditingTeam(null);
       setEditPlayers([]);
@@ -215,14 +228,17 @@ export default function AdminTeams() {
     clearMessages();
     setBusy(true);
     try {
-      const { error } = await supabase!.rpc('delete_team', { p_team: deletingTeam.id });
+      const { error } = await supabase!.rpc('delete_team', { p_team: deletingTeam.id, p_force: deleteNeedsForce });
       if (error) throw error;
       setActionSuccess(`تم حذف فريق "${deletingTeam.saint?.name_ar ?? `#${deletingTeam.team_number}`}" نهائياً.`);
       if (expandedTeamId === deletingTeam.id) setExpandedTeamId(null);
       setDeletingTeam(null);
+      setDeleteNeedsForce(false);
       refetch();
     } catch (e: unknown) {
-      setActionError(describeActionError(e, 'تعذّر حذف الفريق.'));
+      // Team already sits in a group/fixtures: ask for an explicit second confirmation instead of failing.
+      if (!deleteNeedsForce && e instanceof Error && e.message.includes('team_in_competition')) setDeleteNeedsForce(true);
+      else { setActionError(describeActionError(e, 'تعذّر حذف الفريق.')); setDeletingTeam(null); setDeleteNeedsForce(false); }
     } finally {
       setBusy(false);
     }
@@ -233,7 +249,7 @@ export default function AdminTeams() {
   const rejectedCount = (teams ?? []).filter((t) => t.status === 'rejected').length;
 
   const filteredTeams = (teams ?? [])
-    .filter((t) => (filter === 'all' ? true : t.status === filter))
+    .filter((t) => (activeFilter === 'all' ? true : t.status === activeFilter))
     .filter((t) => {
       if (!search.trim()) return true;
       const s = search.trim().toLowerCase();
@@ -247,9 +263,11 @@ export default function AdminTeams() {
       {/* Header & Status Notice */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ivory/10 pb-4">
         <div>
-          <h1 className="font-heading text-2xl font-bold sm:text-3xl">إدارة واعتماد الفرق</h1>
+          <h1 className="font-heading text-2xl font-bold sm:text-3xl">{accepted ? 'الفرق المقبولة' : 'إدارة واعتماد الفرق'}</h1>
           <p className="mt-1 text-sm text-ivory/70">
-            مراجعة طلبات الفرق المسجلة، تعيين القديسين، واعتماد القوائم النهائية.
+            {accepted
+              ? 'الفرق المعتمدة والظاهرة للجميع. يمكنك تعديل اسم القديس وقائمة اللاعبين أو حذف أي فريق.'
+              : 'مراجعة طلبات الفرق المسجلة، تعيين القديسين، وتعديل أو حذف الفرق قبل اعتمادها.'}
           </p>
         </div>
         <button
@@ -278,43 +296,32 @@ export default function AdminTeams() {
 
       {/* Filters & Search */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setFilter('pending')}
-            className={`btn !min-h-9 !px-3 text-xs ${
-              filter === 'pending' ? 'bg-gold text-midnight' : 'border border-ivory/20 text-ivory/80'
-            }`}
-          >
-            <Clock className="h-3.5 w-3.5" />
-            قيد الانتظار ({num(pendingCount)})
-          </button>
-          <button
-            onClick={() => setFilter('approved')}
-            className={`btn !min-h-9 !px-3 text-xs ${
-              filter === 'approved' ? 'bg-gold text-midnight' : 'border border-ivory/20 text-ivory/80'
-            }`}
-          >
-            <CheckCircle className="h-3.5 w-3.5" />
-            المعتمدة ({num(approvedCount)})
-          </button>
-          <button
-            onClick={() => setFilter('rejected')}
-            className={`btn !min-h-9 !px-3 text-xs ${
-              filter === 'rejected' ? 'bg-gold text-midnight' : 'border border-ivory/20 text-ivory/80'
-            }`}
-          >
-            <XCircle className="h-3.5 w-3.5" />
-            المرفوضة ({num(rejectedCount)})
-          </button>
-          <button
-            onClick={() => setFilter('all')}
-            className={`btn !min-h-9 !px-3 text-xs ${
-              filter === 'all' ? 'bg-gold text-midnight' : 'border border-ivory/20 text-ivory/80'
-            }`}
-          >
-            جميع الفرق ({num(teams?.length ?? 0)})
-          </button>
-        </div>
+        {accepted ? (
+          <p className="rounded-xl border border-gold/30 bg-gold/10 px-4 py-2 text-sm text-gold">
+            عدد الفرق المعتمدة: <b>{num(approvedCount)}</b>
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFilter('pending')}
+              className={`btn !min-h-9 !px-3 text-xs ${filter === 'pending' ? 'bg-gold text-midnight' : 'border border-ivory/20 text-ivory/80'}`}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              قيد الانتظار ({num(pendingCount)})
+            </button>
+            <button
+              onClick={() => setFilter('rejected')}
+              className={`btn !min-h-9 !px-3 text-xs ${filter === 'rejected' ? 'bg-gold text-midnight' : 'border border-ivory/20 text-ivory/80'}`}
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              المرفوضة ({num(rejectedCount)})
+            </button>
+            <Link to={adminPath('accepted-teams')} className="btn !min-h-9 !px-3 text-xs border border-gold/40 text-gold hover:bg-gold/10">
+              <CheckCircle className="h-3.5 w-3.5" />
+              الفرق المقبولة ({num(approvedCount)})
+            </Link>
+          </div>
+        )}
 
         <div className="relative min-w-[220px]">
           <Search className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-muted" aria-hidden="true" />
@@ -337,7 +344,7 @@ export default function AdminTeams() {
       ) : isError ? (
         <ErrorNote>تعذّر تحميل بيانات الفرق. تأكد من اتصالك بالإنترنت وصلاحيات الإدارة.</ErrorNote>
       ) : filteredTeams.length === 0 ? (
-        <Empty>لا توجد فرق تطابق الاختيار المحدد.</Empty>
+        <Empty>{accepted ? 'لا توجد فرق معتمدة بعد.' : 'لا توجد فرق تطابق الاختيار المحدد.'}</Empty>
       ) : (
         <div className="space-y-4">
           {filteredTeams.map((team) => {
@@ -447,7 +454,7 @@ export default function AdminTeams() {
                     )}
 
                     <button
-                      onClick={() => setDeletingTeam(team)}
+                      onClick={() => { setDeleteNeedsForce(false); setDeletingTeam(team); }}
                       disabled={busy}
                       className="btn-ghost !min-h-9 !px-3 text-xs text-danger hover:border-danger hover:text-danger"
                       title="حذف الفريق نهائياً"
@@ -567,7 +574,7 @@ export default function AdminTeams() {
               <label className="mb-1 block text-xs font-semibold text-ivory" htmlFor="team-editor-saint">اسم القديس</label>
               <select id="team-editor-saint" className="field text-sm" value={editSaintId} onChange={(e) => setEditSaintId(e.target.value)}>
                 <option value="">-- اختر قديساً من القائمة --</option>
-                {(saints ?? []).map((saint) => <option key={saint.id} value={saint.id}>{saint.name_ar}</option>)}
+                {editorSaints.map((saint) => <option key={saint.id} value={saint.id}>{saint.name_ar}</option>)}
               </select>
             </div>
 
@@ -605,16 +612,22 @@ export default function AdminTeams() {
         </div>
       )}
 
-      {/* Delete confirmation keeps a destructive action deliberate. */}
+      {/* Delete confirmation: a second, explicit step is required when the team already sits in a group or fixtures. */}
       {deletingTeam && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-danger/40 bg-midnight p-6 shadow-2xl">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl border border-danger/40 bg-midnight p-6 shadow-2xl">
             <h2 className="font-heading text-lg font-bold text-danger">حذف فريق {deletingTeam.saint?.name_ar ?? `#${num(deletingTeam.team_number)}`}؟</h2>
-            <p className="mt-2 text-xs leading-5 text-ivory/75">هذا الإجراء نهائي. سيُحذف لاعبو التسجيل الجماعي، بينما يعود اللاعبون المسجلون فردياً إلى قائمة الانتظار.</p>
-            <p className="mt-2 text-xs leading-5 text-gold/90">لا يمكن حذف فريق موجود بالفعل في مجموعة أو مباراة، لحماية نتائج البطولة.</p>
+            <p className="mt-2 text-xs leading-5 text-ivory/75">هذا الإجراء نهائي. سيُحذف لاعبو التسجيل الجماعي، بينما يعود اللاعبون المسجلون فردياً إلى قائمة الانتظار، ويتحرر اسم القديس لفريق آخر.</p>
+            {deleteNeedsForce && (
+              <div role="alert" className="mt-3 rounded-xl border border-danger/50 bg-danger/10 p-3 text-xs leading-5 text-danger">
+                هذا الفريق موجود بالفعل في مجموعة. المتابعة ستحذف الفريق وجميع مبارياته غير المنتهية في دور المجموعات، وقد تحتاج إلى إعادة قرعة المجموعات بعدها. لا يمكن حذف فريق لعب مباريات منتهية.
+              </div>
+            )}
             <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setDeletingTeam(null)} className="btn-ghost !min-h-9 !px-3 text-xs" disabled={busy}>إلغاء</button>
-              <button onClick={handleDeleteTeamConfirm} className="btn !min-h-9 !px-4 bg-danger text-xs text-white hover:bg-danger/80" disabled={busy}>{busy ? 'جارٍ الحذف…' : 'حذف الفريق نهائياً'}</button>
+              <button onClick={() => { setDeletingTeam(null); setDeleteNeedsForce(false); }} className="btn-ghost !min-h-9 !px-3 text-xs" disabled={busy}>إلغاء</button>
+              <button onClick={handleDeleteTeamConfirm} className="btn !min-h-9 !px-4 bg-danger text-xs text-white hover:bg-danger/80" disabled={busy}>
+                {busy ? 'جارٍ الحذف…' : deleteNeedsForce ? 'حذف الفريق ومبارياته' : 'حذف الفريق نهائياً'}
+              </button>
             </div>
           </div>
         </div>

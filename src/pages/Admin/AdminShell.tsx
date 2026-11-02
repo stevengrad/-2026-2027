@@ -1,6 +1,7 @@
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import {
   CheckSquare,
+  UserCheck,
   Users,
   LayoutGrid,
   Swords,
@@ -17,6 +18,7 @@ import { adminPath } from '../../lib/adminRoute';
 
 const ADMIN_TABS = [
   { to: adminPath('teams'), label: 'اعتماد الفرق', icon: CheckSquare },
+  { to: adminPath('accepted-teams'), label: 'الفرق المقبولة', icon: UserCheck },
   { to: adminPath('auto-teams'), label: 'توليد الفرق', icon: Users },
   { to: adminPath('groups'), label: 'المجموعات والقرعة', icon: LayoutGrid },
   { to: adminPath('knockout'), label: 'الأدوار الإقصائية', icon: Swords },

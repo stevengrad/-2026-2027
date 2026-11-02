@@ -21,3 +21,20 @@
 - احتفظ بالرابط والمصدر واسم المصمم والاعتماد وملاحظة الحق في شاشة القديس.
 - الصورة ذات الحقوق غير المعروفة لا يمكن اعتمادها كصورة منشورة.
 - لا تحذف قديساً مرتبطاً بسجل تاريخي؛ عطّله بدلاً من ذلك.
+
+## Editing and deleting teams (before and after acceptance)
+
+Two admin tabs manage teams:
+
+| Tab | Teams shown | Actions |
+|---|---|---|
+| اعتماد الفرق | new requests (قيد الانتظار) and rejected | accept, reject, **edit**, **delete** |
+| الفرق المقبولة | accepted teams (visible to the public) | **edit**, **delete** |
+
+* **Edit** changes the saint and the roster (4–7 players, name + class, add/remove). Works at every stage, even after groups and fixtures exist. A player who already has a goal or card recorded cannot be removed (rename them instead). Removing an individually registered player sends them back to the waiting pool.
+* **Delete** removes the team and frees its saint. Individually registered players return to the waiting pool; team-registration players are deleted.
+  * If the team is already in a group, a second confirmation is required: its unplayed group fixtures are deleted too, and you should redraw the groups afterwards.
+  * A team with finished matches, or one inside a knockout bracket, cannot be deleted (regenerate the bracket first).
+* Every edit and delete is written to `audit_logs`.
+
+Requires migration `0012_edit_delete_accepted_teams.sql` (run it in the Supabase SQL editor after 0011).
