@@ -19,7 +19,7 @@ export default function PsalmPreservation() {
       <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-gold/60 bg-emerald/80 text-gold shadow-lg shadow-black/30"><ShieldCheck className="h-7 w-7" aria-hidden="true" /></div>
       <p className="mt-4 font-heading text-gold">صلاة وتأمل</p>
       <h1 className="mt-2 text-3xl font-extrabold sm:text-5xl">مزمور الحفظ</h1>
-      <p className="mt-3 text-ivory/75">المزمور المائة والثالث والعشرون</p>
+      <p className="mt-3 text-ivory/75">المزمور المائة والرابع والعشرون</p>
       <Divider className="my-7" />
 
       <figure className="overflow-hidden rounded-2xl border-2 border-gold/50 bg-midnight p-1 shadow-2xl shadow-black/35">
@@ -27,7 +27,7 @@ export default function PsalmPreservation() {
         <figcaption className="px-4 py-3 text-xs text-ivory/65">النص والصورة مقدمان من أسرة أنبياء.</figcaption>
       </figure>
 
-      <article className="mt-8 rounded-2xl border border-ivory/10 bg-emerald/50 px-5 py-7 text-right shadow-lg shadow-black/20 sm:px-10 sm:py-10" aria-label="نص مزمور الحفظ">
+      <article className="mt-8 rounded-2xl border border-ivory/10 bg-emerald/50 px-5 py-7 text-center shadow-lg shadow-black/20 sm:px-10 sm:py-10" aria-label="نص مزمور الحفظ">
         <h2 className="mb-6 text-center font-heading text-xl text-gold">عوننا باسم الرب</h2>
         <div className="space-y-4 text-xl leading-[2.1] text-ivory sm:text-2xl">{PSALM_LINES.map((line) => <p key={line}>{line}</p>)}</div>
       </article>
