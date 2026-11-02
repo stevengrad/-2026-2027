@@ -5,12 +5,14 @@
 ## 1. أنشئ مشروع Supabase
 
 1. أنشئ مشروعاً على خطة Supabase Free وسجّل `Project URL` و`Publishable key` من **Connect**.
-2. ثبّت Supabase CLI وسجّل الدخول، ثم اربط مجلد المشروع:
+2. ثبّت المشروع محلياً مرة واحدة عبر `npm install`؛ فهو يحتوي الآن على Supabase CLI. سجّل الدخول، ثم اربط مجلد المشروع:
 
    ```powershell
-   supabase login
-   supabase link --project-ref YOUR_PROJECT_REF
-   supabase db push
+   npx supabase login
+   npx supabase projects list
+   npx supabase link --project-ref YOUR_PROJECT_REF
+   npx supabase db push --dry-run --remote
+   npx supabase db push --include-seed --remote
    ```
 
    أو نفّذ ملفات `supabase/migrations/0001_core.sql` حتى `0005_saint_storage.sql` بالترتيب داخل SQL Editor، ثم نفّذ `supabase/seed.sql`.
@@ -26,15 +28,15 @@
 5. انشر كل الدوال وأضف الأسرار للخادم فقط:
 
    ```powershell
-   supabase functions deploy register-team
-   supabase functions deploy register-player
-   supabase functions deploy generate-teams
-   supabase functions deploy generate-groups
-   supabase functions deploy generate-knockout
-   supabase functions deploy manage-match
+   npx supabase functions deploy register-team --yes
+   npx supabase functions deploy register-player --yes
+   npx supabase functions deploy generate-teams --yes
+   npx supabase functions deploy generate-groups --yes
+   npx supabase functions deploy generate-knockout --yes
+   npx supabase functions deploy manage-match --yes
 
-   supabase secrets set TURNSTILE_SECRET_KEY=YOUR_TURNSTILE_SECRET
-   supabase secrets set ALLOWED_ORIGINS=https://YOUR_GITHUB_NAME.github.io
+   npx supabase secrets set TURNSTILE_SECRET_KEY=YOUR_TURNSTILE_SECRET --yes
+   npx supabase secrets set ALLOWED_ORIGINS=https://YOUR_GITHUB_NAME.github.io --yes
    ```
 
    مهم: استخدم origin فقط، ولا تضف اسم المستودع إلى `ALLOWED_ORIGINS`. المتصفح يرسل `https://YOUR_GITHUB_NAME.github.io` كـ Origin حتى عندما يكون الموقع داخل مسار مستودع.
