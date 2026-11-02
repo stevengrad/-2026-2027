@@ -52,7 +52,7 @@ export default function Home() {
           <Link to="/register" className="btn-gold !px-8 text-lg">{closed ? 'انتهى موعد التسجيل' : 'سجّل فريقك'}</Link>
           <Link to="/groups" className="btn-ghost bg-midnight/40 !px-8 text-lg backdrop-blur">لوحة البطولة</Link></div>
       </div>
-      <Football className="absolute bottom-6 start-[7%] hidden h-20 w-20 animate-ball drop-shadow-[0_18px_14px_rgb(0_0_0/.5)] lg:block" />
+      <Football className="absolute bottom-4 start-[6%] block h-14 w-14 animate-ball drop-shadow-[0_14px_12px_rgb(0_0_0/.5)] sm:bottom-6 sm:start-[7%] sm:h-20 sm:w-20 sm:drop-shadow-[0_18px_14px_rgb(0_0_0/.5)]" />
     </section>
 
     {/* VERSE */}
