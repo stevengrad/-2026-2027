@@ -11,7 +11,7 @@ export const className = z.enum(['', ...TOURNAMENT_CLASSES]).refine(
 );
 export const teamFormSchema = z.object({
   saintId: z.string().min(1, 'اختر قديساً من القائمة'),
-  players: z.array(z.object({ name: arabicName, class: className })).min(1, 'أضف لاعباً واحداً على الأقل').max(7, 'الحد الأقصى ٧ لاعبين'),
+  players: z.array(z.object({ name: arabicName, class: className })).min(4, 'أضف ٤ لاعبين على الأقل لتسجيل فريق.').max(7, 'الحد الأقصى ٧ لاعبين'),
 }).superRefine((v, ctx) => {
   const seen = new Set<string>();
   v.players.forEach((p, i) => { const k = p.name.trim().toLowerCase();

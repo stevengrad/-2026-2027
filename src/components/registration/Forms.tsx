@@ -27,14 +27,14 @@ function useSubmit(fn: 'register-team' | 'register-player', onDone: () => void) 
 }
 
 export function TeamRegistrationForm({ onDone }: { onDone: () => void }) {
-  const { control, register, handleSubmit, formState: { errors } } = useForm<TeamForm>({ resolver: zodResolver(teamFormSchema), defaultValues: { saintId: '', players: [{ name: '', class: '' }] } });
+  const { control, register, handleSubmit, formState: { errors } } = useForm<TeamForm>({ resolver: zodResolver(teamFormSchema), defaultValues: { saintId: '', players: [{ name: '', class: '' }, { name: '', class: '' }, { name: '', class: '' }, { name: '', class: '' }] } });
   const { fields, append, remove } = useFieldArray({ control, name: 'players' });
   const s = useSubmit('register-team', onDone);
   return (<form onSubmit={handleSubmit((v) => s.submit(v))} className="space-y-6" noValidate>
     <Controller control={control} name="saintId" render={({ field }) => <SaintPicker value={field.value} onChange={field.onChange} error={errors.saintId?.message} />} />
-    <fieldset className="space-y-3"><legend className="mb-1 font-semibold">اللاعبون ({num(fields.length)} من ٧)</legend>
+    <fieldset className="space-y-3"><legend className="mb-1 font-semibold">اللاعبون ({num(fields.length)} من ٧)</legend><p className="text-sm text-ivory/70">الحد الأدنى لتسجيل فريق هو ٤ لاعبين، والحد الأقصى ٧ لاعبين.</p>
       {fields.map((f, i) => (<div key={f.id} className="card space-y-2 !p-4"><div className="flex items-center justify-between"><span className="font-heading text-gold">اللاعب {num(i + 1)}</span>
-        {fields.length > 1 && <button type="button" onClick={() => remove(i)} className="text-danger" aria-label={`حذف اللاعب ${num(i + 1)}`}><Trash2 className="h-5 w-5" /></button>}</div>
+        {fields.length > 4 && <button type="button" onClick={() => remove(i)} className="text-danger" aria-label={`حذف اللاعب ${num(i + 1)}`}><Trash2 className="h-5 w-5" /></button>}</div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div><input className="field" placeholder="اسم اللاعب" aria-label={`اسم اللاعب ${num(i + 1)}`} {...register(`players.${i}.name`)} /><Err m={errors.players?.[i]?.name?.message} /></div>
           <div><label className="sr-only" htmlFor={`team-player-class-${i}`}>فصل اللاعب {num(i + 1)}</label><select id={`team-player-class-${i}`} className="field" aria-label={`فصل اللاعب ${num(i + 1)}`} defaultValue="" {...register(`players.${i}.class`)}><option value="" disabled>اختر الفصل…</option>{TOURNAMENT_CLASSES.map((className) => <option key={className} value={className}>{className}</option>)}</select><Err m={errors.players?.[i]?.class?.message} /></div></div></div>))}

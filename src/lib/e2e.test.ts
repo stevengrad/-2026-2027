@@ -36,18 +36,29 @@ describe('End-to-End Tournament Lifecycle', () => {
       }
     });
 
-    it('enforces player limits (1 to 7 players)', () => {
+    it('enforces player limits (4 to 7 players)', () => {
       const emptyTeam = {
         saintId: '00000000-0000-0000-0000-000000000001',
         players: [],
       };
       expect(teamFormSchema.safeParse(emptyTeam).success).toBe(false);
 
+      const threePlayers = {
+        saintId: '00000000-0000-0000-0000-000000000001',
+        players: [
+          { name: 'مينا عادل', class: 'داود النبي' },
+          { name: 'كيرلس يوسف', class: 'موسى النبي' },
+          { name: 'أنطون سمير', class: 'يشوع النبي' },
+        ],
+      };
+      expect(teamFormSchema.safeParse(threePlayers).success).toBe(false);
+
+      const names = ['مينا عادل', 'كيرلس يوسف', 'أنطون سمير', 'بيشوي إبراهيم', 'شنودة فؤاد', 'مارك عاطف', 'بطرس سامي', 'جرجس كامل'];
       const eightPlayers = {
         saintId: '00000000-0000-0000-0000-000000000001',
         players: Array.from({ length: 8 }, (_, i) => ({
-          name: `لاعب عربي ${i + 1}`,
-          class: 'فصل',
+          name: names[i],
+          class: 'داود النبي',
         })),
       };
       expect(teamFormSchema.safeParse(eightPlayers).success).toBe(false);

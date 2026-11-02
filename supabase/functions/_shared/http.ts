@@ -23,7 +23,7 @@ export const ERRORS: Record<string, [number, string]> = {
   saint_taken: [409, 'هذا القديس مختار بالفعل لفريق آخر، اختر قديساً آخر.'],
   saint_unavailable: [409, 'هذا القديس غير متاح حالياً.'],
   duplicate_players: [422, 'يوجد لاعب مكرر في قائمة الفريق.'],
-  invalid_player_count: [422, 'عدد اللاعبين يجب أن يكون من ١ إلى ٧.'],
+  invalid_player_count: [422, 'عدد لاعبي الفريق يجب أن يكون من ٤ إلى ٧.'],
   player_not_waiting: [409, 'تغيّرت قائمة الانتظار، أعد المعاينة.'],
   invalid_team_size: [422, 'حجم الفريق يجب أن يكون من ٤ إلى ٧ لاعبين.'],
   forbidden: [403, 'غير مصرّح لك بهذا الإجراء.'],
@@ -65,7 +65,7 @@ const base = { turnstileToken: z.string().min(1, 'أكمل التحقق الأم
 
 export const teamSchema = z.object({
   saintId: z.string().uuid('اختر قديساً من القائمة'),
-  players: z.array(z.object({ name: arabicName, class: className })).min(1, 'أضف لاعباً واحداً على الأقل').max(7, 'الحد الأقصى ٧ لاعبين'),
+  players: z.array(z.object({ name: arabicName, class: className })).min(4, 'أضف ٤ لاعبين على الأقل لتسجيل فريق.').max(7, 'الحد الأقصى ٧ لاعبين'),
   ...base,
 }).strict();
 export const individualSchema = z.object({ name: arabicName, class: className, ...base }).strict();
