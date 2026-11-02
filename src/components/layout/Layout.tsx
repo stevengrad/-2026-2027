@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { BookOpen, ExternalLink, Menu, X } from 'lucide-react';
 import { CrossMark } from '../ui/CrossMark';
 import { DavidEmblem } from '../art/DavidEmblem';
 import { Divider } from '../art/Ornament';
@@ -8,7 +8,7 @@ import { BRAND, BRAND_SHORT, SEASON, TAGLINE } from '../../lib/brand';
 
 export const NAV = [
   { to: '/', label: 'الرئيسية' }, { to: '/register', label: 'تسجيل فريق' }, { to: '/teams', label: 'الفرق المشاركة' },
-  { to: '/groups', label: 'المجموعات' }, { to: '/knockout', label: 'الأدوار الإقصائية' }, { to: '/sunday', label: 'مباريات الأحد' }, { to: '/scorers', label: 'الهدافون' },
+  { to: '/groups', label: 'المجموعات' }, { to: '/knockout', label: 'الأدوار الإقصائية' }, { to: '/sunday', label: 'مباريات الأحد' }, { to: '/scorers', label: 'الهدافون' }, { to: '/psalm-preservation', label: 'مزمور الحفظ' },
 ];
 const link = ({ isActive }: { isActive: boolean }) => `rounded-lg px-3 py-2 text-sm transition ${isActive ? 'bg-gold/15 text-gold' : 'text-ivory/80 hover:text-gold'}`;
 
@@ -35,6 +35,10 @@ export function Layout() {
       <main id="main" className="flex-1"><Outlet /></main>
       <footer className="pattern-cross border-t border-gold/20 bg-emerald/40 py-10 text-center text-sm text-ivory/70">
         <DavidEmblem className="mx-auto mb-3 w-24" /><p className="font-heading text-base text-ivory">{BRAND} <bdi dir="ltr">{SEASON}</bdi></p>
-        <Divider className="my-3" /><p>{TAGLINE}</p></footer>
+        <Divider className="my-3" /><p>{TAGLINE}</p>
+        <a href="https://stevengrad.github.io/Bible-Study/" target="_blank" rel="noreferrer" className="mx-auto mt-5 inline-flex items-center gap-2 rounded-xl border border-gold/45 bg-midnight/35 px-4 py-2.5 font-heading text-gold transition hover:border-gold hover:bg-gold/10">
+          <BookOpen className="h-4 w-4" aria-hidden="true" />دراسة الكتاب المقدس<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+      </footer>
     </div>);
 }

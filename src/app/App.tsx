@@ -12,6 +12,7 @@ import Sunday from '../pages/Sunday';
 import Scorers from '../pages/Scorers';
 import MatchDetails from '../pages/MatchDetails';
 import Soon from '../pages/Soon';
+import PsalmPreservation from '../pages/PsalmPreservation';
 
 // Admin Pages
 import AdminLogin from '../pages/Admin/AdminLogin';
@@ -40,6 +41,7 @@ export default function App() {
           <Route element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="register" element={<Register />} />
+            <Route path="psalm-preservation" element={<PsalmPreservation />} />
             <Route path="match/:id" element={<MatchDetails />} />
             <Route element={<DashboardShell />}>
               <Route path="teams" element={<Teams />} />
