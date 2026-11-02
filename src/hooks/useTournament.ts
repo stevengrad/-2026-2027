@@ -9,7 +9,7 @@ export const useTournament = () => useQuery({ queryKey: ['tournament'], enabled:
   queryFn: async () => { const { data, error } = await supabase!.from('tournaments').select('*').limit(1).maybeSingle(); if (error) throw error; return data as Tournament | null; } });
 
 export interface PublicTeam { id: string; team_number: number; saint_id: string; saint_name_ar: string; portrait_path: string | null; players_count: number }
-export const usePublicTeams = () => useQuery({ queryKey: ['public_teams'], enabled: !!supabase,
+export const usePublicTeams = () => useQuery({ queryKey: ['public_teams'], enabled: !!supabase, refetchInterval: 30_000, refetchOnReconnect: true,
   queryFn: async () => { const { data, error } = await supabase!.from('public_teams').select('*').order('team_number'); if (error) throw error; return data as PublicTeam[]; } });
 
 /** Display-only countdown. The database/Edge Functions enforce the real deadline with the server clock. */

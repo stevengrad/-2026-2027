@@ -24,4 +24,7 @@
   .num { font-variant-numeric: tabular-nums; }
 }
 .lights { background: radial-gradient(60% 50% at 20% 0%, rgb(243 239 229 / .16), transparent 70%), radial-gradient(60% 50% at 80% 0%, rgb(198 165 104 / .14), transparent 70%); }
+.league-news-mask { mask-image: linear-gradient(90deg, transparent, black 5%, black 95%, transparent); }
+.league-news-track { animation: league-news-scroll 38s linear infinite; }
+@keyframes league-news-scroll { to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
