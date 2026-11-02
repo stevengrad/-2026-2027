@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
+import { TOURNAMENT_CLASSES } from './classes.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const origins = env('ALLOWED_ORIGINS').split(',').map((s) => s.trim()).filter(Boolean);
@@ -59,7 +60,7 @@ async function verifyTurnstile(token: string, ip: string) {
 
 export const arabicName = z.string().trim().min(2, 'الاسم قصير جداً').max(80, 'الاسم طويل جداً')
   .regex(/^[\u0600-\u06FF\u0750-\u077F][\u0600-\u06FF\u0750-\u077F .'-]*$/, 'اكتب الاسم بالحروف العربية');
-export const className = z.string().trim().min(1, 'اسم الفصل مطلوب').max(60, 'اسم الفصل طويل جداً');
+export const className = z.enum(TOURNAMENT_CLASSES, { errorMap: () => ({ message: 'اختر الفصل من القائمة.' }) });
 const base = { turnstileToken: z.string().min(1, 'أكمل التحقق الأمني'), idempotencyKey: z.string().min(16).max(100) };
 
 export const teamSchema = z.object({

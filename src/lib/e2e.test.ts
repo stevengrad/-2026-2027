@@ -11,10 +11,10 @@ describe('End-to-End Tournament Lifecycle', () => {
       const validTeam = {
         saintId: '00000000-0000-0000-0000-000000000001',
         players: [
-          { name: 'مينا عادل', class: 'ثانوي بنين' },
-          { name: 'كيرلس يوسف', class: 'ثانوي بنين' },
-          { name: 'أنطون سمير', class: 'إعدادي بنين' },
-          { name: 'بيشوي إبراهيم', class: 'ثانوي بنين' },
+          { name: 'مينا عادل', class: 'داود النبي' },
+          { name: 'كيرلس يوسف', class: 'داود النبي' },
+          { name: 'أنطون سمير', class: 'موسى النبي' },
+          { name: 'بيشوي إبراهيم', class: 'داود النبي' },
         ],
       };
       const res = teamFormSchema.safeParse(validTeam);
@@ -25,8 +25,8 @@ describe('End-to-End Tournament Lifecycle', () => {
       const duplicateTeam = {
         saintId: '00000000-0000-0000-0000-000000000001',
         players: [
-          { name: 'مينا عادل', class: 'فصل ١' },
-          { name: '  مينا عادل  ', class: 'فصل ٢' },
+          { name: 'مينا عادل', class: 'داود النبي' },
+          { name: '  مينا عادل  ', class: 'موسى النبي' },
         ],
       };
       const res = teamFormSchema.safeParse(duplicateTeam);
@@ -54,7 +54,7 @@ describe('End-to-End Tournament Lifecycle', () => {
     });
 
     it('validates individual player registrations', () => {
-      const validInd = { name: 'يوحنا مرقس', class: 'أولى ثانوي' };
+      const validInd = { name: 'يوحنا مرقس', class: 'يوحنا المعمدان' };
       expect(individualFormSchema.safeParse(validInd).success).toBe(true);
 
       const invalidName = { name: 'John123', class: 'فصل' };
