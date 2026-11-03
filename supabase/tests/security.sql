@@ -21,7 +21,7 @@ insert into saints (name_ar, letter, is_approved, image_rights) select 'قديس
 
 do $$
 declare T constant uuid := '00000000-0000-0000-0000-0000000000aa'; ADM constant uuid := '00000000-0000-0000-0000-00000000ad01';
-  USR constant uuid := '00000000-0000-0000-0000-00000000bb01'; i int; tid uuid; sid uuid[]; gid uuid; mid uuid; p1 uuid; p2 uuid; a uuid; b uuid; ids uuid[];
+  USR constant uuid := '00000000-0000-0000-0000-00000000bb01'; i int; tid uuid; sid uuid[]; gid uuid; mid uuid; p1 uuid; p2 uuid; a uuid; b uuid; ids uuid[]; qf1 uuid; qf2 uuid; sf1 uuid; sf2 uuid; final_match uuid; third_match uuid;
 begin
   select array_agg(id order by name_ar) into sid from saints;
   -- 6 manual teams via the service-role registration function
@@ -99,6 +99,32 @@ begin
   perform t_fail('authenticated', ADM, format('select set_match_score(%L,1,1,true)', mid), 'penalties_required');
   perform t_exec('authenticated', ADM, format('select set_match_score(%L,1,1,true,''penalties'',4,3)', mid));
   perform t_eq('penalty winner', (select winner_team_id from matches where id = mid), ids[1]);
+
+  -- Knockout advancement: quarter-final winners feed the matching semi-final slots;
+  -- the semi-final winner enters the final and its loser enters the third-place match.
+  insert into matches (tournament_id, stage, bracket_order, home_team_id, away_team_id)
+    values (T, 'quarter_final', 1, ids[1], ids[2]) returning id into qf1;
+  insert into matches (tournament_id, stage, bracket_order, home_team_id, away_team_id)
+    values (T, 'quarter_final', 2, ids[3], ids[4]) returning id into qf2;
+  insert into matches (tournament_id, stage, bracket_order)
+    values (T, 'semi_final', 1) returning id into sf1;
+  insert into matches (tournament_id, stage, bracket_order, home_team_id, away_team_id)
+    values (T, 'semi_final', 2, ids[5], ids[6]) returning id into sf2;
+  insert into matches (tournament_id, stage, bracket_order)
+    values (T, 'final', 1) returning id into final_match;
+  insert into matches (tournament_id, stage)
+    values (T, 'third_place') returning id into third_match;
+
+  perform t_exec('authenticated', ADM, format('select set_match_score(%L,2,0,true)', qf1));
+  perform t_eq('quarter-final 1 winner advances to semi home slot', (select home_team_id from matches where id = sf1), ids[1]);
+  perform t_exec('authenticated', ADM, format('select set_match_score(%L,0,1,true)', qf2));
+  perform t_eq('quarter-final 2 winner advances to semi away slot', (select away_team_id from matches where id = sf1), ids[4]);
+  perform t_exec('authenticated', ADM, format('select set_match_score(%L,3,0,true)', sf1));
+  perform t_eq('semi-final 1 winner advances to final home slot', (select home_team_id from matches where id = final_match), ids[1]);
+  perform t_eq('semi-final 1 loser advances to third-place home slot', (select home_team_id from matches where id = third_match), ids[4]);
+  perform t_exec('authenticated', ADM, format('select set_match_score(%L,0,2,true)', sf2));
+  perform t_eq('semi-final 2 winner advances to final away slot', (select away_team_id from matches where id = final_match), ids[6]);
+  perform t_eq('semi-final 2 loser advances to third-place away slot', (select away_team_id from matches where id = third_match), ids[5]);
 
   -- deadline enforced by DB clock
   update tournaments set registration_deadline = now() - interval '1 second';

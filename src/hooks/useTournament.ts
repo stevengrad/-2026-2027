@@ -24,11 +24,14 @@ export function useCountdown(deadlineIso?: string) {
 // Public read-only views. Realtime on views is not supported by Postgres, so the dashboard polls every 30s
 // (and refetches on focus/reconnect) — a safe fallback that never needs write access.
 const LIVE = { refetchInterval: 30_000, refetchOnReconnect: true } as const;
+// Knockout progression is saved immediately by the database; poll its public view
+// more frequently so the newly advanced team appears without a manual page refresh.
+const BRACKET_LIVE = { refetchInterval: 5_000, refetchOnReconnect: true } as const;
 function useView<T>(key: string, view: string, order: string, ascending = true) {
   return useQuery({ queryKey: [key], enabled: !!supabase, ...LIVE,
     queryFn: async () => { const { data, error } = await supabase!.from(view).select('*').order(order, { ascending, nullsFirst: false }); if (error) throw error; return data as T[]; } });
 }
-export const usePublicMatches = () => useQuery({ queryKey: ['public_matches'], enabled: !!supabase, ...LIVE,
+export const usePublicMatches = () => useQuery({ queryKey: ['public_matches'], enabled: !!supabase, ...BRACKET_LIVE,
   queryFn: async () => {
     const { data, error } = await supabase!.from('public_matches').select('*')
       .order('scheduled_at', { ascending: true, nullsFirst: false })

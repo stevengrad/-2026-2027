@@ -52,6 +52,8 @@ export default function AdminKnockout() {
 
   const { data: existing, isLoading: existingLoading, refetch } = useQuery({
     queryKey: ['admin_existing_knockout'],
+    refetchInterval: 5_000,
+    refetchOnReconnect: true,
     queryFn: async () => {
       if (!supabase) return [];
       const { data, error: requestError } = await supabase.from('matches').select(`

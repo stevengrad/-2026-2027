@@ -72,11 +72,50 @@ Deno.serve(async (req) => {
   if (payload.action === 'update_details') {
     const updateObj: Record<string, unknown> = {};
     if (payload.scheduledAt !== undefined) updateObj.scheduled_at = payload.scheduledAt;
-    if (payload.status !== undefined) updateObj.status = payload.status;
     if (payload.homeTeamId !== undefined) updateObj.home_team_id = payload.homeTeamId;
     if (payload.awayTeamId !== undefined) updateObj.away_team_id = payload.awayTeamId;
 
-    const { data, error } = await db.from('matches').update(updateObj).eq('id', payload.matchId).select().single();
+    if (Object.keys(updateObj).length > 0) {
+      const { error } = await db.from('matches').update(updateObj).eq('id', payload.matchId);
+      if (error) return dbError(req, error.message);
+    }
+
+    if (payload.status !== undefined) {
+      const { data: current, error: currentError } = await db.from('matches')
+        .select('id, stage, status, home_score, away_score, decision, home_pens, away_pens')
+        .eq('id', payload.matchId).single();
+      if (currentError || !current) return dbError(req, currentError?.message ?? 'match_not_found');
+
+      // Marking a knockout fixture as completed through the status editor must use
+      // the same score RPC as the score editor, so the winner is calculated and
+      // advanced automatically. Reopening a completed fixture also clears its
+      // unplayed downstream slot safely.
+      if (current.stage !== 'group' && (payload.status === 'completed' || current.status === 'completed')) {
+        if (payload.status === 'completed' && (current.home_score == null || current.away_score == null)) {
+          return json(req, { error: 'score_required', message: 'أدخل نتيجة المباراة أولاً قبل اعتماد انتهائها.' }, 422);
+        }
+        const { error: scoreError } = await db.rpc('set_match_score', {
+          p_match: payload.matchId,
+          p_home: current.home_score ?? 0,
+          p_away: current.away_score ?? 0,
+          p_complete: payload.status === 'completed',
+          p_decision: current.decision ?? 'regular',
+          p_hp: current.home_pens,
+          p_ap: current.away_pens,
+        });
+        if (scoreError) return dbError(req, scoreError.message);
+
+        if (payload.status !== 'completed') {
+          const { error: statusError } = await db.from('matches').update({ status: payload.status }).eq('id', payload.matchId);
+          if (statusError) return dbError(req, statusError.message);
+        }
+      } else {
+        const { error: statusError } = await db.from('matches').update({ status: payload.status }).eq('id', payload.matchId);
+        if (statusError) return dbError(req, statusError.message);
+      }
+    }
+
+    const { data, error } = await db.from('matches').select('*').eq('id', payload.matchId).single();
     if (error) return dbError(req, error.message);
     return json(req, { ok: true, match: data });
   }
