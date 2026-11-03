@@ -83,3 +83,68 @@
 .champion-pinned-portrait img, .champion-pinned-portrait [role="img"] { border-radius: .5rem; }
 @keyframes champion-pin-enter { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .champion-pinned { animation: none; } }
+
+
+/* Mobile floodlights: the desktop stadium SVG is intentionally wide and its side towers are cropped by
+   preserveAspectRatio="xMidYMax slice" on portrait screens. Recreate two bright banks within the phone viewport. */
+.stadium-mobile-floodlights {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+.stadium-mobile-bank {
+  position: absolute;
+  top: 8%;
+  width: 54%;
+  height: 66%;
+  opacity: .9;
+}
+.stadium-mobile-bank-left { left: -9%; }
+.stadium-mobile-bank-right { right: -9%; }
+.stadium-mobile-beam {
+  position: absolute;
+  top: 31px;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, rgb(255 250 229 / .26), rgb(243 239 229 / .13) 34%, rgb(243 239 229 / .035) 72%, transparent);
+  filter: blur(9px);
+  clip-path: polygon(19% 0, 81% 0, 100% 100%, 0 100%);
+  transform-origin: 50% 0;
+  animation: stadium-mobile-beam 5.2s ease-in-out infinite;
+}
+.stadium-mobile-bank-right .stadium-mobile-beam { animation-delay: -2.6s; }
+.stadium-mobile-lamp-grid {
+  position: absolute;
+  top: 0;
+  left: 20%;
+  display: flex;
+  width: 60%;
+  height: 25px;
+  align-items: center;
+  justify-content: space-evenly;
+  gap: 2px;
+  padding: 4px 5px;
+  border: 1px solid rgb(198 165 104 / .58);
+  border-radius: 5px;
+  background: linear-gradient(180deg, #34404a, #111a20);
+  box-shadow: 0 0 9px 3px rgb(243 239 229 / .22), 0 0 28px 9px rgb(243 239 229 / .12);
+}
+.stadium-mobile-lamp-grid i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #fff9e8;
+  box-shadow: 0 0 7px 2px rgb(255 249 232 / .65);
+}
+@keyframes stadium-mobile-beam {
+  0%, 100% { opacity: .56; transform: scaleX(.96); }
+  50% { opacity: 1; transform: scaleX(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stadium-mobile-beam { animation: none; opacity: .85; }
+}

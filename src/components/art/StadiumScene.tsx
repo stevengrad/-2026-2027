@@ -66,5 +66,17 @@ export function StadiumScene({ className = '' }: { className?: string }) {
         <rect y="620" width="1440" height="140" fill="url(#fade)" />
       </svg>
       {photo && <img src={`${import.meta.env.BASE_URL}assets/stadium/hero.jpg`} alt="" onError={() => setPhoto(false)} className="absolute inset-0 h-full w-full object-cover opacity-30 mix-blend-luminosity" />}
+      {/* On narrow screens the wide SVG viewBox is cropped at both sides, which hides its outer floodlight towers.
+          Add a compact, purpose-built pair of lights so the stadium illumination remains visible on phones. */}
+      <div className="stadium-mobile-floodlights sm:hidden" aria-hidden="true">
+        {(['left', 'right'] as const).map((side) => (
+          <div key={side} className={`stadium-mobile-bank stadium-mobile-bank-${side}`}>
+            <span className="stadium-mobile-beam" />
+            <span className="stadium-mobile-lamp-grid">
+              {Array.from({ length: 8 }, (_, i) => <i key={i} />)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>);
 }
