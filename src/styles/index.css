@@ -71,3 +71,15 @@
   .champion-banner-featured .champion-rays { opacity: .14; }
   .champion-banner-compact .champion-spark { display: none; }
 }
+
+/* Compact fixed champion strip shown after the full award banner scrolls out of view. */
+.champion-pinned {
+  background: linear-gradient(105deg, rgb(7 23 17 / .98), rgb(18 55 45 / .98) 52%, rgb(7 23 17 / .98));
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  animation: champion-pin-enter .22s ease-out both;
+}
+.champion-pinned-portrait > div { border-width: 1px; border-radius: .7rem; padding: 2px; }
+.champion-pinned-portrait img, .champion-pinned-portrait [role="img"] { border-radius: .5rem; }
+@keyframes champion-pin-enter { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .champion-pinned { animation: none; } }

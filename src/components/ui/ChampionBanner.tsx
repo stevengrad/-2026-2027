@@ -1,4 +1,5 @@
 import { BadgeCheck, ChevronLeft, Crown, ShieldCheck, Sparkles, Trophy as TrophyIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePublicMatches, usePublicTeams } from '../../hooks/useTournament';
 import { getTournamentChampion } from '../../lib/champion';
@@ -8,10 +9,27 @@ import { Trophy } from '../art/Trophy';
 import { SaintFrame } from './SaintFrame';
 
 /** Site-wide official winner announcement. It remains hidden until the final is completed. */
-export function ChampionBanner({ featured = false }: { featured?: boolean }) {
+export function ChampionBanner({ featured = false, pinnedEnabled = true }: { featured?: boolean; pinnedEnabled?: boolean }) {
+  const bannerRef = useRef<HTMLElement | null>(null);
+  const [showPinned, setShowPinned] = useState(false);
   const { data: matches = [] } = usePublicMatches();
   const { data: teams = [] } = usePublicTeams();
   const champion = getTournamentChampion(matches, teams);
+
+  // Reveal a slim, fixed champion bar only after the full announcement has scrolled away.
+  useEffect(() => {
+    const element = bannerRef.current;
+    if (!element || !champion || !pinnedEnabled || typeof IntersectionObserver === 'undefined') {
+      setShowPinned(false);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      setShowPinned(!entry.isIntersecting && entry.boundingClientRect.bottom <= 0);
+    }, { threshold: 0 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [champion?.teamId, pinnedEnabled, featured]);
+
   if (!champion) return null;
 
   const { finalMatch: match } = champion;
@@ -26,7 +44,9 @@ export function ChampionBanner({ featured = false }: { featured?: boolean }) {
     : null;
 
   return (
+    <>
     <section
+      ref={bannerRef}
       aria-label={`بطل ${BRAND}: فريق ${champion.teamName}`}
       className={`champion-banner relative isolate overflow-hidden border-b border-gold/60 ${featured ? 'champion-banner-featured' : 'champion-banner-compact'}`}
       dir="rtl"
@@ -98,5 +118,31 @@ export function ChampionBanner({ featured = false }: { featured?: boolean }) {
         </div>
       </div>
     </section>
+
+    {showPinned && pinnedEnabled && (
+      <div className="champion-pinned fixed inset-x-0 top-16 z-20 border-b border-gold/70 shadow-[0_10px_28px_rgba(0,0,0,.42)]" dir="rtl" role="status" aria-live="polite" aria-label={`البطل الرسمي: فريق ${champion.teamName}`}>
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-3 sm:px-4">
+          <div className="champion-pinned-portrait shrink-0">
+            <SaintFrame name={champion.teamName} path={champion.portraitPath} className="w-11" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-full border border-gold/60 bg-gold/15 px-2 py-0.5 text-[9px] font-extrabold text-gold sm:text-[10px]">
+                <Crown className="h-3 w-3" aria-hidden="true" /> البطل الرسمي
+              </span>
+              <span className="hidden text-[9px] font-bold tracking-widest text-gold/60 sm:inline" dir="ltr">THE CHAMPIONS</span>
+            </div>
+            <p className="mt-0.5 truncate font-heading text-sm font-black text-ivory sm:text-base">فريق {champion.teamName}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 border-s border-gold/25 ps-2 sm:ps-4">
+            <span className="hidden text-[10px] font-bold text-gold/80 sm:inline">نتيجة النهائي</span>
+            <strong className="num font-heading text-sm font-black text-gold sm:text-base" dir="ltr">{score}</strong>
+            <Trophy className="champion-trophy h-9 w-9 sm:h-10 sm:w-10" />
+          </div>
+          <Link to={`/teams/${champion.teamId}`} className="hidden rounded-lg border border-gold/35 px-2.5 py-1.5 text-[10px] font-bold text-ivory transition hover:bg-gold/10 sm:inline-flex">ملف الأبطال</Link>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
