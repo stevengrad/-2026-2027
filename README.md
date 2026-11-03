@@ -45,3 +45,6 @@ npm run build
 ```
 
 تغطي الاختبارات القرعة والمجموعات والترتيب والهدافين والأهداف العكسية والمهلة والتدفقات الأساسية، بالإضافة إلى تطبيع النقاط والترتيب الثابت لشجرة الإقصائيات. اختبارات SQL موجودة في `supabase/tests/` ويجب تشغيلها على قاعدة اختبار منفصلة، لا على مشروع الإنتاج.
+## Official champion display
+
+When the final is recorded as completed with a valid winner, the public site automatically displays a championship announcement with the winning team's saint portrait, official champion badge, final score (champion listed first), opponent name, and trophy artwork across all public pages. See [the champion display notes](docs/OFFICIAL_CHAMPION_DISPLAY.md). This is frontend-only and needs no additional Supabase migration.

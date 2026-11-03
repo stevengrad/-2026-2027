@@ -5,6 +5,7 @@ import { CrossMark } from '../ui/CrossMark';
 import { DavidEmblem } from '../art/DavidEmblem';
 import { Divider } from '../art/Ornament';
 import { BRAND, BRAND_SHORT, SEASON, TAGLINE } from '../../lib/brand';
+import { ChampionBanner } from '../ui/ChampionBanner';
 
 export const NAV = [
   { to: '/', label: 'الرئيسية' }, { to: '/register', label: 'تسجيل فريق' }, { to: '/teams', label: 'الفرق المشاركة' },
@@ -32,6 +33,7 @@ export function Layout() {
         {open && <nav id="mobile-nav" aria-label="التنقل الرئيسي" className="flex animate-rise flex-col gap-1 border-t border-ivory/10 p-3 xl:hidden">
           {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.to === '/'} className={(s) => link(s) + ' !py-3 text-base'}>{n.label}</NavLink>)}</nav>}
       </header>
+      <ChampionBanner featured={pathname === '/'} />
       <main id="main" className="flex-1"><Outlet /></main>
       <footer className="pattern-cross border-t border-gold/20 bg-emerald/40 py-10 text-center text-sm text-ivory/70">
         <DavidEmblem className="mx-auto mb-3 w-24" /><p className="font-heading text-base text-ivory">{BRAND} <bdi dir="ltr">{SEASON}</bdi></p>
