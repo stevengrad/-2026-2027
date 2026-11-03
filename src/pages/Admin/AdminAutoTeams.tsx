@@ -9,11 +9,17 @@ import {
   HelpCircle,
   ArrowRight,
   RefreshCw,
+  Pencil,
+  Trash2,
+  Save,
+  X,
 } from 'lucide-react';
 import { supabase, callFunction } from '../../lib/supabase';
 import { Empty, ErrorNote, Skeleton } from '../../components/ui/States';
 import { num } from '../../lib/format';
 import { adminPath } from '../../lib/adminRoute';
+import { TOURNAMENT_CLASSES } from '../../lib/classes';
+import { individualFormSchema } from '../../lib/schemas';
 
 interface WaitingPlayer {
   id: string;
@@ -44,6 +50,11 @@ export default function AdminAutoTeams() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [editingPlayer, setEditingPlayer] = useState<WaitingPlayer | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editClassName, setEditClassName] = useState('');
+  const [deletingPlayer, setDeletingPlayer] = useState<WaitingPlayer | null>(null);
+  const [playerDialogError, setPlayerDialogError] = useState<string | null>(null);
 
   // Fetch waiting individual players
   const { data: waiting, isLoading, isError, refetch } = useQuery({
@@ -100,6 +111,99 @@ export default function AdminAutoTeams() {
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'تعذّر تنفيذ إنشاء الفرق.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openPlayerEditor = (player: WaitingPlayer) => {
+    setError(null);
+    setPlayerDialogError(null);
+    setSuccess(null);
+    setEditingPlayer(player);
+    setEditName(player.full_name_ar);
+    setEditClassName(player.class_name_ar);
+  };
+
+  const handleSavePlayer = async () => {
+    if (!editingPlayer || !supabase || busy) return;
+    setError(null);
+    setSuccess(null);
+
+    const parsed = individualFormSchema.safeParse({ name: editName, class: editClassName });
+    if (!parsed.success) {
+      setPlayerDialogError(parsed.error.issues[0]?.message ?? 'راجع اسم اللاعب والفصل ثم حاول مرة أخرى.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { data, error: updateError } = await supabase
+        .from('players')
+        .update({
+          full_name_ar: parsed.data.name,
+          class_name_ar: parsed.data.class,
+        })
+        .eq('id', editingPlayer.id)
+        .eq('source', 'individual')
+        .eq('pool_status', 'waiting')
+        .is('team_id', null)
+        .select('id')
+        .maybeSingle();
+
+      if (updateError) throw updateError;
+      if (!data) throw new Error('player_not_editable');
+
+      setSuccess(`تم تحديث بيانات اللاعب «${parsed.data.name}» بنجاح.`);
+      setPlayerDialogError(null);
+      setEditingPlayer(null);
+      setPreview(null);
+      await refetch();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : '';
+      setPlayerDialogError(message.includes('player_not_editable')
+        ? 'لم يعد هذا اللاعب ضمن قائمة الانتظار. حدّث القائمة ثم حاول مرة أخرى.'
+        : message || 'تعذّر حفظ بيانات اللاعب.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeletePlayer = async () => {
+    if (!deletingPlayer || !supabase || busy) return;
+    setError(null);
+    setSuccess(null);
+    setBusy(true);
+
+    try {
+      const { data, error: deleteError } = await supabase
+        .from('players')
+        .delete()
+        .eq('id', deletingPlayer.id)
+        .eq('source', 'individual')
+        .eq('pool_status', 'waiting')
+        .is('team_id', null)
+        .select('id')
+        .maybeSingle();
+
+      if (deleteError) throw deleteError;
+      if (!data) throw new Error('player_not_deletable');
+
+      setSuccess(`تم حذف اللاعب «${deletingPlayer.full_name_ar}» من قائمة المسجلين الفرديين.`);
+      setPlayerDialogError(null);
+      setDeletingPlayer(null);
+      setPreview(null);
+      await refetch();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : '';
+      const errorCode = typeof e === 'object' && e !== null && 'code' in e
+        ? String((e as { code?: unknown }).code ?? '')
+        : '';
+      setPlayerDialogError(message.includes('player_not_deletable')
+        ? 'لم يعد هذا اللاعب ضمن قائمة الانتظار. حدّث القائمة ثم حاول مرة أخرى.'
+        : message.includes('23503') || errorCode === '23503'
+          ? 'لا يمكن حذف هذا اللاعب لارتباطه ببيانات مباراة. تواصل مع مسؤول النظام.'
+          : message || 'تعذّر حذف اللاعب.');
     } finally {
       setBusy(false);
     }
@@ -270,9 +374,14 @@ export default function AdminAutoTeams() {
 
       {/* Waiting Players List */}
       <div className="panel p-6">
-        <h2 className="mb-4 font-heading text-lg font-bold text-ivory">
-          قائمة اللاعبين الفرديين المسجلين ({num(waitingCount)})
-        </h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-heading text-lg font-bold text-ivory">
+            قائمة اللاعبين الفرديين المسجلين ({num(waitingCount)})
+          </h2>
+          <span className="rounded-lg border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[11px] text-sky-200">
+            اللاعبون الذين لم يتم توزيعهم على فرق بعد
+          </span>
+        </div>
 
         {isLoading ? (
           <div className="space-y-2">
@@ -293,6 +402,7 @@ export default function AdminAutoTeams() {
                   <th className="p-2.5">اسم اللاعب</th>
                   <th className="p-2.5">الفصل</th>
                   <th className="p-2.5">تاريخ التسجيل</th>
+                  <th className="p-2.5 text-center">الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -310,6 +420,30 @@ export default function AdminAutoTeams() {
                         minute: '2-digit',
                       }).format(new Date(p.created_at))}
                     </td>
+                    <td className="p-2.5">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openPlayerEditor(p)}
+                          disabled={busy}
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-gold/30 bg-gold/10 px-2.5 text-[11px] font-semibold text-gold transition hover:bg-gold/20 disabled:opacity-50"
+                          aria-label={`تعديل بيانات ${p.full_name_ar}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          تعديل
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setError(null); setPlayerDialogError(null); setDeletingPlayer(p); }}
+                          disabled={busy}
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-danger/30 bg-danger/10 px-2.5 text-[11px] font-semibold text-danger transition hover:bg-danger/20 disabled:opacity-50"
+                          aria-label={`حذف ${p.full_name_ar}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          حذف
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -317,6 +451,71 @@ export default function AdminAutoTeams() {
           </div>
         )}
       </div>
+
+      {editingPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 p-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" aria-labelledby="edit-individual-player-title" className="w-full max-w-lg rounded-2xl border border-gold/30 bg-midnight p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <h2 id="edit-individual-player-title" className="font-heading text-lg font-bold text-gold">تعديل بيانات اللاعب</h2>
+              <button type="button" onClick={() => { setEditingPlayer(null); setPlayerDialogError(null); }} className="rounded-lg p-2 text-ivory/60 transition hover:bg-ivory/10 hover:text-ivory" aria-label="إغلاق" disabled={busy}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {playerDialogError && <p role="alert" className="mb-4 rounded-lg border border-danger/40 bg-danger/10 p-3 text-xs leading-5 text-danger">{playerDialogError}</p>}
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="edit-individual-player-name" className="mb-1.5 block text-sm font-semibold text-ivory">اسم اللاعب</label>
+                <input
+                  id="edit-individual-player-name"
+                  className="field"
+                  value={editName}
+                  onChange={(event) => setEditName(event.target.value)}
+                  maxLength={80}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label htmlFor="edit-individual-player-class" className="mb-1.5 block text-sm font-semibold text-ivory">الفصل</label>
+                <select
+                  id="edit-individual-player-class"
+                  className="field"
+                  value={editClassName}
+                  onChange={(event) => setEditClassName(event.target.value)}
+                >
+                  <option value="" disabled>اختر الفصل…</option>
+                  {TOURNAMENT_CLASSES.map((className) => <option key={className} value={className}>{className}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => { setEditingPlayer(null); setPlayerDialogError(null); }} className="btn-ghost !min-h-10 !px-4 text-xs" disabled={busy}>إلغاء</button>
+              <button type="button" onClick={handleSavePlayer} className="btn-gold !min-h-10 !px-4 text-xs" disabled={busy}>
+                <Save className="h-4 w-4" />
+                {busy ? 'جارٍ الحفظ…' : 'حفظ التعديلات'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 p-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-individual-player-title" className="w-full max-w-md rounded-2xl border border-danger/40 bg-midnight p-6 shadow-2xl">
+            <h2 id="delete-individual-player-title" className="font-heading text-lg font-bold text-danger">حذف اللاعب؟</h2>
+            {playerDialogError && <p role="alert" className="mt-3 rounded-lg border border-danger/40 bg-danger/10 p-3 text-xs leading-5 text-danger">{playerDialogError}</p>}
+            <p className="mt-3 text-sm leading-6 text-ivory/80">
+              هل أنت متأكد من حذف اللاعب «{deletingPlayer.full_name_ar}» نهائياً من قائمة التسجيل الفردي؟ لا يمكن التراجع عن هذا الإجراء.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => { setDeletingPlayer(null); setPlayerDialogError(null); }} className="btn-ghost !min-h-9 !px-3 text-xs" disabled={busy}>إلغاء</button>
+              <button type="button" onClick={handleDeletePlayer} className="btn !min-h-9 !px-4 bg-danger text-xs text-white hover:bg-danger/80" disabled={busy}>
+                <Trash2 className="h-4 w-4" />
+                {busy ? 'جارٍ الحذف…' : 'تأكيد الحذف'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
