@@ -4,7 +4,7 @@
 alter table players drop constraint players_class_name_catalog;
 
 update players
-set class_name_ar = 'يشوع النبي'
+set class_name_ar = 'اليشع النبي'
 where class_name_ar = 'يشع النبي';
 
 alter table players
@@ -16,7 +16,7 @@ alter table players
       'هوشع النبي',
       'أشعياء النبي',
       'داود النبي',
-      'يشوع النبي',
+      'اليشع النبي',
       'إيليا النبي',
       'أرميا النبي',
       'موسى النبي',

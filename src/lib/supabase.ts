@@ -5,8 +5,13 @@ const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 export const supabase = url && key ? createClient(url, key) : null;   // publishable key only — safe for the browser
 export const isConfigured = Boolean(supabase);
 
-/** Public Storage bucket "saints". Returns null when no approved portrait exists (a branded placeholder is shown). */
-export const portraitUrl = (path?: string | null) => (path && url ? `${url}/storage/v1/object/public/saints/${path}` : null);
+/** Resolves bundled public portraits and Supabase Storage portraits. */
+export const portraitUrl = (path?: string | null) => {
+  if (!path) return null;
+  // Bundled portraits use Vite's configured base path so they work on GitHub Pages project sites.
+  if (path.startsWith('assets/')) return `${import.meta.env.BASE_URL}${path}`;
+  return url ? `${url}/storage/v1/object/public/saints/${path}` : null;
+};
 
 export class ApiError extends Error {
   constructor(public code: string, message: string, public issues?: { path: string; message: string }[]) { super(message); }

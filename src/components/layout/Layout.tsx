@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { BookOpen, ExternalLink, Menu, X } from 'lucide-react';
 import { CrossMark } from '../ui/CrossMark';
-import { DavidEmblem } from '../art/DavidEmblem';
-import { Divider } from '../art/Ornament';
-import { BRAND, BRAND_SHORT, SEASON, TAGLINE } from '../../lib/brand';
+import { BRAND, BRAND_SHORT, SEASON } from '../../lib/brand';
 import { ChampionBanner } from '../ui/ChampionBanner';
 
 export const NAV = [
@@ -19,7 +17,7 @@ export function Layout() {
   useEffect(() => { setOpen(false); window.scrollTo(0, 0); }, [pathname]);
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex flex-col">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded-lg focus:bg-gold focus:px-4 focus:py-2 focus:text-midnight">تخطَّ إلى المحتوى</a>
       <header className="sticky top-0 z-30 border-b border-gold/15 bg-midnight/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
@@ -34,11 +32,9 @@ export function Layout() {
           {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.to === '/'} className={(s) => link(s) + ' !py-3 text-base'}>{n.label}</NavLink>)}</nav>}
       </header>
       <ChampionBanner key={pathname} featured={pathname === '/'} pinnedEnabled={!open} />
-      <main id="main" className="flex-1"><Outlet /></main>
-      <footer className="pattern-cross border-t border-gold/20 bg-emerald/40 py-10 text-center text-sm text-ivory/70">
-        <DavidEmblem className="mx-auto mb-3 w-24" /><p className="font-heading text-base text-ivory">{BRAND} <bdi dir="ltr">{SEASON}</bdi></p>
-        <Divider className="my-3" /><p>{TAGLINE}</p>
-        <a href="https://stevengrad.github.io/Bible-Study/" target="_blank" rel="noreferrer" className="mx-auto mt-5 inline-flex items-center gap-2 rounded-xl border border-gold/45 bg-midnight/35 px-4 py-2.5 font-heading text-gold transition hover:border-gold hover:bg-gold/10">
+      <main id="main"><Outlet /></main>
+      <footer className="border-t border-gold/20 bg-emerald/30 px-4 py-4 text-center">
+        <a href="https://stevengrad.github.io/Bible-Study/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-gold/45 bg-midnight/35 px-4 py-2.5 font-heading text-sm text-gold transition hover:border-gold hover:bg-gold/10">
           <BookOpen className="h-4 w-4" aria-hidden="true" />دراسة الكتاب المقدس<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
       </footer>
