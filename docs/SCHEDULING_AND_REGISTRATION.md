@@ -25,8 +25,8 @@ A 12th match would end after 7:30, so it moves to the next play day.
 ## 2. Registration deadline
 
 The deadline is one database row (`tournaments.registration_deadline`) enforced with the server clock.
-Migration 0016 moves it to **Friday 13 Nov 2026, 12:00 am Cairo** (that is the end of Thursday night; to keep registration open
-through all of Friday choose Saturday 12:00 am instead).
+Migration 0016 moved it to Friday 13 Nov 2026, 12:00 am Cairo. Migration 0017 re-extends it to **Saturday 14 Nov 2026, 12:00 am Cairo**
+(that is the end of Friday night; registration stays open through all of Friday).
 
 To change it later: Admin -> **الإعدادات** -> pick a date/time -> *حفظ الموعد وإعادة فتح التسجيل*.
 The change is audit-logged, the homepage countdown/text and the registration page update automatically, and the

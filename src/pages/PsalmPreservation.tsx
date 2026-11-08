@@ -16,7 +16,7 @@ export default function PsalmPreservation() {
       <article className="rounded-2xl border-2 border-gold/50 bg-emerald/60 px-5 py-8 text-center shadow-2xl shadow-black/35 sm:px-12 sm:py-12" aria-label={`نص المزمور ${PSALM.numeral}: ${PSALM.title}`}>
         {PSALM.stanzas.map((stanza, i) => <div key={i}>
           {i > 0 && <Divider className="my-8" />}
-          <div className="space-y-4 text-xl leading-[2.2] text-ivory sm:text-2xl sm:leading-[2.3]">{stanza.map((line) => <p key={line}>{line}</p>)}</div>
+          <div className="space-y-4 text-xl font-bold leading-[2.2] text-ivory sm:text-2xl sm:leading-[2.3]">{stanza.map((line) => <p key={line}>{line}</p>)}</div>
         </div>)}
         <p className="mt-8 text-xs text-ivory/60">النص مقدَّم من أسرة أنبياء.</p>
       </article>
