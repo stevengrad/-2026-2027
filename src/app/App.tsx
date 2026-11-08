@@ -25,6 +25,7 @@ import AdminGroups from '../pages/Admin/AdminGroups';
 import AdminKnockout from '../pages/Admin/AdminKnockout';
 import AdminMatches from '../pages/Admin/AdminMatches';
 import AdminSaints from '../pages/Admin/AdminSaints';
+import AdminSettings from '../pages/Admin/AdminSettings';
 import { ADMIN_SEGMENT, adminPath } from '../lib/adminRoute';
 
 const qc = new QueryClient({
@@ -69,6 +70,7 @@ export default function App() {
               <Route path="knockout" element={<AdminKnockout />} />
               <Route path="matches" element={<AdminMatches />} />
               <Route path="saints" element={<AdminSaints />} />
+              <Route path="settings" element={<AdminSettings />} />
             </Route>
           </Route>
         </Routes>

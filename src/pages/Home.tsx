@@ -14,10 +14,11 @@ import { Divider } from '../components/art/Ornament';
 import { Empty } from '../components/ui/States';
 import { usePublicMatches, usePublicTeams, useScorers, useTournament, useCountdown } from '../hooks/useTournament';
 import { BRAND, MOTTO, SEASON, TAGLINE } from '../lib/brand';
-import { num } from '../lib/format';
+import { deadlineLabel, num } from '../lib/format';
+import { REGISTRATION_DEADLINE } from '../lib/tournament';
 
 const STEPS: [LucideIcon, string, string][] = [
-  [ClipboardList, 'التسجيل', 'سجّل فريقك أو انضم كلاعب حتى ٧ نوفمبر'],
+  [ClipboardList, 'التسجيل', 'سجّل فريقك أو انضم كلاعب قبل إغلاق باب التسجيل'],
   [CheckCircle2, 'الاعتماد', 'تراجع الإدارة الفرق وتعتمدها'],
   [Shuffle, 'المجموعات', 'قرعة عادلة إلى مجموعات من ٣ أو ٤ فرق'],
   [Swords, 'الأدوار الإقصائية', 'يتأهل الأوائل إلى ربع ونصف النهائي'],
@@ -112,6 +113,6 @@ export default function Home() {
     </section>
 
     <section className="mx-auto max-w-5xl px-4 pb-16"><VerseBanner variant="feature" />
-      <div className="mt-8 text-center text-sm text-ivory/70"><CalendarDays className="mx-auto mb-1 h-5 w-5 text-gold" aria-hidden="true" />آخر موعد للتسجيل: ٧ نوفمبر ٢٠٢٦ — ١١:٥٩ مساءً بتوقيت القاهرة</div></section>
+      <div className="mt-8 text-center text-sm text-ivory/70"><CalendarDays className="mx-auto mb-1 h-5 w-5 text-gold" aria-hidden="true" />آخر موعد للتسجيل: {deadlineLabel(t?.registration_deadline ?? REGISTRATION_DEADLINE.toISOString())} بتوقيت القاهرة</div></section>
   </>);
 }

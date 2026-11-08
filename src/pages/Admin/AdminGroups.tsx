@@ -11,6 +11,7 @@ import { supabase, callFunction } from '../../lib/supabase';
 import { Empty, Skeleton } from '../../components/ui/States';
 import { SaintAvatar } from '../../components/ui/SaintAvatar';
 import { num } from '../../lib/format';
+import { SchedulePanel, applyPlan, buildPlan, initialSched, rangeLabel, type SchedState } from './GroupScheduler';
 
 interface PreviewTeam {
   id: string;
@@ -50,6 +51,7 @@ export default function AdminGroups() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [sched, setSched] = useState<SchedState>(initialSched);
 
   // Fetch approved teams count
   const { data: approvedTeams } = useQuery({
@@ -135,9 +137,20 @@ export default function AdminGroups() {
         seed,
       });
       if (res.ok) {
-        setSuccess(`تم بنجاح إجراء القرعة ونشر ${num(res.groupCount)} مجموعات مع جدولة جميع مبارياتها.`);
+        let note = ' وتم إنشاء جدول مبارياتها.';
         setPreview(null);
         refetch();
+        if (sched.auto) {
+          try {
+            const plan = await buildPlan(sched.opts, false);
+            if (plan.length) { const n = await applyPlan(plan); note = ` وتمت جدولة ${num(n)} مباراة ${rangeLabel(plan)}.`; }
+          } catch (se: unknown) {
+            setError(`تم نشر المجموعات لكن تعذّرت الجدولة التلقائية: ${se instanceof Error ? se.message : 'خطأ غير معروف'}. يمكنك إعادة المحاولة من قسم «الجدولة التلقائية» أدناه.`);
+            note = '';
+          }
+        }
+        if (note) setSuccess(`تم بنجاح إجراء القرعة ونشر ${num(res.groupCount)} مجموعات${note}`);
+        else setSuccess(`تم نشر ${num(res.groupCount)} مجموعات.`);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'تعذّر نشر المجموعات.');
@@ -270,6 +283,8 @@ export default function AdminGroups() {
           )}
         </div>
       )}
+
+      <SchedulePanel state={sched} onChange={setSched} hasGroups={(existingGroups?.length ?? 0) > 0} />
 
       {/* Preview Section */}
       {preview && (

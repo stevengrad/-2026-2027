@@ -10,6 +10,7 @@ import {
   LogOut,
   ExternalLink,
   Shield,
+  Settings,
 } from 'lucide-react';
 import { useAdminAuth } from '../../hooks/useAdminAuth';
 import { DavidEmblem } from '../../components/art/DavidEmblem';
@@ -24,6 +25,7 @@ const ADMIN_TABS = [
   { to: adminPath('knockout'), label: 'الأدوار الإقصائية', icon: Swords },
   { to: adminPath('matches'), label: 'إدارة المباريات', icon: Calendar },
   { to: adminPath('saints'), label: 'إدارة القديسين', icon: Cross },
+  { to: adminPath('settings'), label: 'الإعدادات', icon: Settings },
 ];
 
 export default function AdminShell() {

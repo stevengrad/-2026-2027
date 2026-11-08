@@ -48,3 +48,7 @@ npm run build
 ## Official champion display
 
 When the final is recorded as completed with a valid winner, the public site automatically displays a championship announcement with the winning team's saint portrait, official champion badge, final score (champion listed first), opponent name, and trophy artwork across all public pages. See [the champion display notes](docs/OFFICIAL_CHAMPION_DISPLAY.md). This is frontend-only and needs no additional Supabase migration. After the full announcement scrolls away, a compact pinned champion ribbon remains beneath the navigation with the saint portrait, team name, final score, and trophy.
+
+
+## Scheduling and registration deadline
+See [docs/SCHEDULING_AND_REGISTRATION.md](docs/SCHEDULING_AND_REGISTRATION.md) (migration `0016`).

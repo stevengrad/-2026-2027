@@ -188,7 +188,7 @@ export function bracketPairings(qualifiedCount: number) {
 }
 
 // 7 Nov 2026 23:59 Cairo (EET, UTC+2 on that date). DB check is authoritative (uses Africa/Cairo tz).
-export const REGISTRATION_DEADLINE = new Date('2026-11-07T23:59:00+02:00');
+export const REGISTRATION_DEADLINE = new Date('2026-11-13T00:00:00+02:00');   // extended; the tournaments row is authoritative
 export const isRegistrationOpen = (now: Date, deadline = REGISTRATION_DEADLINE) => now.getTime() < deadline.getTime();
 export const isSundayInCairo = (d: Date) =>
   new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Cairo', weekday: 'short' }).format(d) === 'Sun';
