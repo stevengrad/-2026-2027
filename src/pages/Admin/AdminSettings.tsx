@@ -155,6 +155,14 @@ export default function AdminSettings() {
     setRulesOk('تم حذف القاعدة بنجاح.');
   };
 
+  const handleClearAllRules = () => {
+    if (typeof window !== 'undefined' && window.confirm('هل أنت متأكد من رغبتك في حذف جميع قواعد المواعيد؟')) {
+      setRules([]);
+      saveScheduleRules([]);
+      setRulesOk('تم حذف جميع قواعد المواعيد بنجاح. عادت الجدولة للوضع الافتراضي.');
+    }
+  };
+
   const handleToggleRandomize = (checked: boolean) => {
     setRandomize(checked);
     saveScheduleRandomize(checked);
@@ -400,7 +408,19 @@ export default function AdminSettings() {
 
         {/* قائمة القواعد المطبقة حالياً */}
         <div className="mt-6 space-y-3">
-          <h3 className="text-xs font-bold text-ivory/80">القواعد المفعلة حالياً:</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-ivory/80">القواعد المفعلة حالياً:</h3>
+            {rules.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAllRules}
+                className="flex items-center gap-1.5 rounded-lg border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger hover:bg-danger/20 transition"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>حذف جميع القواعد ({num(rules.length)})</span>
+              </button>
+            )}
+          </div>
           {rules.length === 0 ? (
             <p className="rounded-xl border border-ivory/10 bg-midnight/30 p-4 text-center text-xs text-ivory/60">
               لا توجد قواعد مواعيد مخصصة حالياً. ستُجدول جميع الفرق بالتساوي وبشكل قياسي.
