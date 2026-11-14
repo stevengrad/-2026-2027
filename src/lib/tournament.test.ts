@@ -115,9 +115,9 @@ describe('knockout byes and bracket pairings', () => {
 
 describe('deadline (Africa/Cairo)', () => {
   it('open 1s before, closed at and after', () => {
-    expect(T.isRegistrationOpen(new Date('2026-11-13T21:59:59Z'))).toBe(true);     // Fri 23:59:59 Cairo
-    expect(T.isRegistrationOpen(new Date('2026-11-13T22:00:00Z'))).toBe(false);    // Sat 00:00 Cairo
-    expect(T.isRegistrationOpen(new Date('2026-11-14T00:00:00Z'))).toBe(false);
+    expect(T.isRegistrationOpen(new Date('2026-11-14T18:59:59Z'))).toBe(true);     // Sat 20:59:59 Cairo (1s before 9pm)
+    expect(T.isRegistrationOpen(new Date('2026-11-14T19:00:00Z'))).toBe(false);    // Sat 21:00:00 Cairo (9:00 pm)
+    expect(T.isRegistrationOpen(new Date('2026-11-14T20:00:00Z'))).toBe(false);
   });
   it('Sunday in Cairo, not UTC', () => {
     expect(T.isSundayInCairo(new Date('2026-11-01T22:30:00Z'))).toBe(false); // Sun 22:30 UTC = Mon 00:30 Cairo

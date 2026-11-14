@@ -381,8 +381,8 @@ describe("End-to-End Tournament Lifecycle", () => {
   // 8. DEADLINE & TIMEZONE RULES
   // -------------------------------------------------------------
   describe("Phase 8: Deadline and Africa/Cairo Timezone Enforcement", () => {
-    it("verifies strict closure at 2026-11-07 23:59 Cairo (UTC+2)", () => {
-      const deadline = new Date("2026-11-07T23:59:00+02:00");
+    it("verifies strict closure at 2026-11-14 21:00 Cairo (UTC+2)", () => {
+      const deadline = new Date("2026-11-14T21:00:00+02:00");
       // 1 millisecond before: open
       expect(
         T.isRegistrationOpen(new Date(deadline.getTime() - 1), deadline),
