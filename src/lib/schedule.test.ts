@@ -86,6 +86,36 @@ describe('assignment', () => {
       }
     });
 
+    it('restricts a team only in its designated week (e.g. week 1 only)', () => {
+      const f = groupFixtures(2, 4);
+      const rule: S.TeamScheduleRule = {
+        id: 'r2',
+        teamId: 'g0t0',
+        teamName: 'داود النبي',
+        week: 1, // Only week 1
+        type: 'interval',
+        startTime: '16:45',
+        endTime: '17:30',
+      };
+      const assigned = S.scheduleFixtures(f, base, [rule], false);
+      const byId = new Map(f.map((x) => [x.id, x]));
+
+      const g0t0Matches = assigned.filter((a) => {
+        const fixture = byId.get(a.id)!;
+        return fixture.home === 'g0t0' || fixture.away === 'g0t0';
+      });
+
+      // Matches in week 1 (2026-11-15) must be between 16:45 and 17:30
+      const week1Matches = g0t0Matches.filter((m) => m.date === '2026-11-15');
+      expect(week1Matches.length).toBeGreaterThan(0);
+      for (const m of week1Matches) {
+        const [hh, mm] = m.time.split(':').map(Number);
+        const min = hh * 60 + mm;
+        expect(min).toBeGreaterThanOrEqual(16 * 60 + 45);
+        expect(min + base.matchMinutes).toBeLessThanOrEqual(17 * 60 + 30);
+      }
+    });
+
     it('supports randomize while keeping all slots valid and unique', () => {
       const f = groupFixtures(2, 4);
       const assigned = S.scheduleFixtures(f, base, [], true);

@@ -40,6 +40,8 @@ export default function AdminSettings() {
 
   // New Rule Form State
   const [teamId, setTeamId] = useState('');
+  const [weekScope, setWeekScope] = useState<'all' | 'specific'>('all');
+  const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const [ruleType, setRuleType] = useState<RuleType>('interval');
   const [startTime, setStartTime] = useState('16:45');
   const [endTime, setEndTime] = useState('17:30');
@@ -120,19 +122,29 @@ export default function AdminSettings() {
       return;
     }
 
+    const ruleWeek = weekScope === 'specific' ? Number(selectedWeek) : 'all';
     const newRule: TeamScheduleRule = {
       id: crypto.randomUUID(),
       teamId: teamObj.id,
       teamName: teamObj.name,
+      week: ruleWeek,
       type: ruleType,
       startTime: ruleType === 'from_start' ? '16:45' : startTime,
       endTime: ruleType === 'to_end' ? '19:30' : endTime,
     };
 
-    const updated = [...rules.filter((r) => r.teamId !== teamObj.id), newRule];
+    // Replace rule if same team and same week scope exists, otherwise append
+    const updated = [
+      ...rules.filter((r) => !(r.teamId === teamObj.id && (r.week ?? 'all') === ruleWeek)),
+      newRule,
+    ];
     setRules(updated);
     saveScheduleRules(updated);
-    setRulesOk(`تمت إضافة قاعدة مواعيد فريق «${teamObj.name}».`);
+    setRulesOk(
+      `تمت إضافة قاعدة مواعيد فريق «${teamObj.name}» (${
+        ruleWeek === 'all' ? 'لكل الأسابيع' : `الأسبوع ${ruleWeek}`
+      }).`
+    );
     setTeamId('');
   };
 
@@ -266,7 +278,7 @@ export default function AdminSettings() {
             إضافة شرط موعد لفريق
           </h3>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {/* الفريق */}
             <div>
               <label className="mb-1 block text-xs font-semibold text-ivory/80">اختر الفريق</label>
@@ -283,6 +295,38 @@ export default function AdminSettings() {
                 ))}
               </select>
             </div>
+
+            {/* نطاق الأسبوع */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ivory/80">نطاق القاعدة</label>
+              <select
+                className="field !min-h-10 text-xs"
+                value={weekScope}
+                onChange={(e) => setWeekScope(e.target.value as 'all' | 'specific')}
+              >
+                <option value="all">لكل أسبوع (طوال البطولة)</option>
+                <option value="specific">أسبوع محدد (حسب الأسبوع)</option>
+              </select>
+            </div>
+
+            {/* اختيار الأسبوع عند التحديد */}
+            {weekScope === 'specific' && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ivory/80">اختر الأسبوع</label>
+                <select
+                  className="field !min-h-10 text-xs"
+                  value={selectedWeek}
+                  onChange={(e) => setSelectedWeek(Number(e.target.value))}
+                >
+                  <option value={1}>الأسبوع الأول (الجولة 1)</option>
+                  <option value={2}>الأسبوع الثاني (الجولة 2)</option>
+                  <option value={3}>الأسبوع الثالث (الجولة 3)</option>
+                  <option value={4}>الأسبوع الرابع (الجولة 4)</option>
+                  <option value={5}>الأسبوع الخامس (الجولة 5)</option>
+                  <option value={6}>الأسبوع السادس (الجولة 6)</option>
+                </select>
+              </div>
+            )}
 
             {/* نوع التقييد الزمني */}
             <div>
@@ -373,8 +417,19 @@ export default function AdminSettings() {
                       <Clock className="h-3.5 w-3.5" />
                     </span>
                     <div>
-                      <p className="font-heading text-sm font-bold text-ivory">{rule.teamName}</p>
-                      <p className="text-xs text-ivory/70">
+                      <div className="flex items-center gap-2">
+                        <p className="font-heading text-sm font-bold text-ivory">{rule.teamName}</p>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                            rule.week === 'all' || !rule.week
+                              ? 'bg-gold/15 text-gold'
+                              : 'bg-emerald/40 text-emerald-300 border border-emerald-500/30'
+                          }`}
+                        >
+                          {rule.week === 'all' || !rule.week ? 'لكل الأسابيع' : `الأسبوع ${num(rule.week)} فقط`}
+                        </span>
+                      </div>
+                      <p className="text-xs text-ivory/70 mt-0.5">
                         {rule.type === 'interval' && (
                           <>
                             يلعب فقط بين <b className="text-gold" dir="ltr">{rule.startTime}</b> و <b className="text-gold" dir="ltr">{rule.endTime}</b>

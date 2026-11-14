@@ -72,11 +72,13 @@ export function buildSlots(count: number, o: ScheduleOptions): Slot[] {
 }
 
 export type RuleType = 'interval' | 'from_start' | 'to_end';
+export type RuleWeek = 'all' | number;
 
 export interface TeamScheduleRule {
   id: string;
   teamId: string;
   teamName: string;
+  week?: RuleWeek;   // 'all' (every week) or 1, 2, 3... (specific week)
   type: RuleType;
   startTime: string; // 'HH:MM'
   endTime: string;   // 'HH:MM'
@@ -172,8 +174,16 @@ export function scheduleFixtures(
   const assignedSlots = new Map<number, Fixture>();
   const lastAt = new Map<string, number>();
   const played = new Map<string, number>();
+  const distinctDates = [...new Set(slots.map((s) => s.date))];
 
   const isSlotAllowedForTeam = (slot: Slot, rule: TeamScheduleRule): boolean => {
+    // If rule is for a specific week, it only constrains slots belonging to that week
+    if (rule.week && rule.week !== 'all') {
+      const slotWeek = distinctDates.indexOf(slot.date) + 1;
+      if (slotWeek !== Number(rule.week)) {
+        return true; // Unconstrained in other weeks
+      }
+    }
     const slotStartMin = toMin(slot.time);
     const slotEndMin = slotStartMin + o.matchMinutes;
     const rStart = rule.type === 'from_start' ? toMin(o.dayStart) : toMin(rule.startTime);
