@@ -55,4 +55,43 @@ describe('assignment', () => {
     expect(S.validateSchedule(base)).toBeNull();
     expect(S.validateSchedule({ ...base, dayEnd: '16:50' })).not.toBeNull();   // 5 minutes cannot hold a 10-minute match
   });
+
+  describe('team custom schedule constraints and randomize', () => {
+    it('restricts a team to its specified interval (e.g. 16:45 to 17:30)', () => {
+      const f = groupFixtures(2, 4);
+      const rule: S.TeamScheduleRule = {
+        id: 'r1',
+        teamId: 'g0t0',
+        teamName: 'داود النبي',
+        type: 'interval',
+        startTime: '16:45',
+        endTime: '17:30',
+      };
+      const assigned = S.scheduleFixtures(f, base, [rule], false);
+      const byId = new Map(f.map((x) => [x.id, x]));
+
+      // Check all matches of g0t0
+      const g0t0Matches = assigned.filter((a) => {
+        const fixture = byId.get(a.id)!;
+        return fixture.home === 'g0t0' || fixture.away === 'g0t0';
+      });
+
+      expect(g0t0Matches.length).toBeGreaterThan(0);
+      for (const m of g0t0Matches) {
+        // Kickoff must be >= 16:45 and end <= 17:30 (so kickoff <= 17:20)
+        const [hh, mm] = m.time.split(':').map(Number);
+        const min = hh * 60 + mm;
+        expect(min).toBeGreaterThanOrEqual(16 * 60 + 45);
+        expect(min + base.matchMinutes).toBeLessThanOrEqual(17 * 60 + 30);
+      }
+    });
+
+    it('supports randomize while keeping all slots valid and unique', () => {
+      const f = groupFixtures(2, 4);
+      const assigned = S.scheduleFixtures(f, base, [], true);
+      expect(assigned).toHaveLength(12);
+      expect(new Set(assigned.map((x) => x.id)).size).toBe(12);
+      expect(new Set(assigned.map((x) => x.iso)).size).toBe(12);
+    });
+  });
 });

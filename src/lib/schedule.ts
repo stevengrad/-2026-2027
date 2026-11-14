@@ -71,28 +71,230 @@ export function buildSlots(count: number, o: ScheduleOptions): Slot[] {
   return slots;
 }
 
+export type RuleType = 'interval' | 'from_start' | 'to_end';
+
+export interface TeamScheduleRule {
+  id: string;
+  teamId: string;
+  teamName: string;
+  type: RuleType;
+  startTime: string; // 'HH:MM'
+  endTime: string;   // 'HH:MM'
+}
+
+export const RULES_STORAGE_KEY = 'anbia_team_schedule_rules';
+export const RANDOMIZE_STORAGE_KEY = 'anbia_schedule_randomize';
+
+export function loadScheduleRules(): TeamScheduleRule[] {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(RULES_STORAGE_KEY) : null;
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveScheduleRules(rules: TeamScheduleRule[]) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify(rules));
+    }
+  } catch {}
+}
+
+export function loadScheduleRandomize(): boolean {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(RANDOMIZE_STORAGE_KEY) === 'true' : false;
+  } catch {
+    return false;
+  }
+}
+
+export function saveScheduleRandomize(val: boolean) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(RANDOMIZE_STORAGE_KEY, String(val));
+    }
+  } catch {}
+}
+
 /**
- * Gives every fixture a slot. Deterministic. Rules, in priority order:
- *  1) a team should not play in two consecutive slots (back-to-back) when another fixture can be placed instead;
- *  2) teams that have played fewer matches so far go first, so every team's matches are spread over the days;
- *  3) otherwise keep the order the fixtures were given in.
+ * Gives every fixture a slot.
+ * When rules are present:
+ *  - Constrained teams (e.g. David the Prophet) are assigned exclusively to slots matching their time window.
+ *  - Matches are spaced to avoid back-to-back playing.
+ *  - If randomize is enabled, matches of the constrained team are randomized within that window,
+ *    and remaining matches are randomized in the remaining slots.
  */
-export function scheduleFixtures(fixtures: readonly Fixture[], o: ScheduleOptions): Assigned[] {
+export function scheduleFixtures(
+  fixtures: readonly Fixture[],
+  o: ScheduleOptions,
+  rules: readonly TeamScheduleRule[] = [],
+  randomize = false
+): Assigned[] {
   const slots = buildSlots(fixtures.length, o);
-  const pool = fixtures.map((f, i) => ({ f, i })), lastAt = new Map<string, number>(), played = new Map<string, number>(), out: Assigned[] = [];
   const stepMs = (o.matchMinutes + o.gapMinutes) * 60000;
-  for (const slot of slots) {
+
+  if (!rules.length) {
+    // Standard deterministic / randomized scheduling without constraints
+    const pool = fixtures.map((f, i) => ({ f, i, rand: Math.random() })),
+      lastAt = new Map<string, number>(),
+      played = new Map<string, number>(),
+      out: Assigned[] = [];
+
+    for (const slot of slots) {
+      const at = Date.parse(slot.iso);
+      let bestK = -1;
+      let best: [number, number, number] = [9, 999, 999];
+
+      pool.forEach(({ f, i, rand }, k) => {
+        const back2back = [f.home, f.away].some((t) => lastAt.has(t) && at - lastAt.get(t)! <= stepMs) ? 1 : 0;
+        const load = (played.get(f.home) ?? 0) + (played.get(f.away) ?? 0);
+        const tie = randomize ? rand : i;
+        const s: [number, number, number] = [back2back, load, tie];
+        if (bestK < 0 || s[0] < best[0] || (s[0] === best[0] && (s[1] < best[1] || (s[1] === best[1] && s[2] < best[2])))) {
+          bestK = k;
+          best = s;
+        }
+      });
+
+      const { f } = pool.splice(bestK, 1)[0];
+      for (const t of [f.home, f.away]) {
+        lastAt.set(t, at);
+        played.set(t, (played.get(t) ?? 0) + 1);
+      }
+      out.push({ id: f.id, ...slot });
+    }
+    return out;
+  }
+
+  // Two-pass constrained scheduling:
+  const assignedSlots = new Map<number, Fixture>();
+  const lastAt = new Map<string, number>();
+  const played = new Map<string, number>();
+
+  const isSlotAllowedForTeam = (slot: Slot, rule: TeamScheduleRule): boolean => {
+    const slotStartMin = toMin(slot.time);
+    const slotEndMin = slotStartMin + o.matchMinutes;
+    const rStart = rule.type === 'from_start' ? toMin(o.dayStart) : toMin(rule.startTime);
+    const rEnd = rule.type === 'to_end' ? toMin(o.dayEnd) : toMin(rule.endTime);
+    return slotStartMin >= rStart && slotEndMin <= rEnd;
+  };
+
+  const constrainedFixtures: Fixture[] = [];
+  const normalFixtures: Fixture[] = [];
+
+  for (const f of fixtures) {
+    const hasRule = rules.some(
+      (r) => r.teamId === f.home || r.teamName === f.home || r.teamId === f.away || r.teamName === f.away
+    );
+    if (hasRule) {
+      constrainedFixtures.push(f);
+    } else {
+      normalFixtures.push(f);
+    }
+  }
+
+  if (randomize) {
+    constrainedFixtures.sort(() => Math.random() - 0.5);
+  }
+
+  // Pass 1: assign constrained fixtures to allowed slots
+  for (const f of constrainedFixtures) {
+    const fRules = rules.filter(
+      (r) => r.teamId === f.home || r.teamName === f.home || r.teamId === f.away || r.teamName === f.away
+    );
+
+    let chosenSlotIdx = -1;
+    for (let idx = 0; idx < slots.length; idx++) {
+      if (assignedSlots.has(idx)) continue;
+      const slot = slots[idx];
+      const at = Date.parse(slot.iso);
+
+      const allRulesPass = fRules.every((r) => isSlotAllowedForTeam(slot, r));
+      if (!allRulesPass) continue;
+
+      const isBackToBack = [f.home, f.away].some(
+        (t) => lastAt.has(t) && Math.abs(at - lastAt.get(t)!) <= stepMs
+      );
+      if (isBackToBack) continue;
+
+      chosenSlotIdx = idx;
+      break;
+    }
+
+    if (chosenSlotIdx === -1) {
+      // Fallback: pick any slot within window even if tight
+      for (let idx = 0; idx < slots.length; idx++) {
+        if (assignedSlots.has(idx)) continue;
+        const slot = slots[idx];
+        if (fRules.every((r) => isSlotAllowedForTeam(slot, r))) {
+          chosenSlotIdx = idx;
+          break;
+        }
+      }
+    }
+
+    if (chosenSlotIdx !== -1) {
+      assignedSlots.set(chosenSlotIdx, f);
+      const at = Date.parse(slots[chosenSlotIdx].iso);
+      for (const t of [f.home, f.away]) {
+        lastAt.set(t, at);
+        played.set(t, (played.get(t) ?? 0) + 1);
+      }
+    } else {
+      normalFixtures.push(f);
+    }
+  }
+
+  // Pass 2: fill remaining slots with remaining fixtures
+  const remainingPool = normalFixtures.map((f, i) => ({ f, i, rand: Math.random() }));
+  if (randomize) {
+    remainingPool.sort((a, b) => a.rand - b.rand);
+  }
+
+  for (let idx = 0; idx < slots.length; idx++) {
+    if (assignedSlots.has(idx)) continue;
+    const slot = slots[idx];
     const at = Date.parse(slot.iso);
-    let bestK = -1, best: [number, number, number] = [9, 0, 0];
-    pool.forEach(({ f, i }, k) => {
-      const back2back = [f.home, f.away].some((t) => lastAt.has(t) && at - lastAt.get(t)! <= stepMs) ? 1 : 0;
+
+    let bestK = -1;
+    let best: [number, number, number] = [9, 999, 999];
+
+    remainingPool.forEach(({ f, i, rand }, k) => {
+      const back2back = [f.home, f.away].some(
+        (t) => lastAt.has(t) && Math.abs(at - lastAt.get(t)!) <= stepMs
+      ) ? 1 : 0;
       const load = (played.get(f.home) ?? 0) + (played.get(f.away) ?? 0);
-      const s: [number, number, number] = [back2back, load, i];
-      if (bestK < 0 || s[0] < best[0] || (s[0] === best[0] && (s[1] < best[1] || (s[1] === best[1] && s[2] < best[2])))) { bestK = k; best = s; }
+      const tie = randomize ? rand : i;
+      const s: [number, number, number] = [back2back, load, tie];
+      if (
+        bestK < 0 ||
+        s[0] < best[0] ||
+        (s[0] === best[0] && (s[1] < best[1] || (s[1] === best[1] && s[2] < best[2])))
+      ) {
+        bestK = k;
+        best = s;
+      }
     });
-    const { f } = pool.splice(bestK, 1)[0];
-    for (const t of [f.home, f.away]) { lastAt.set(t, at); played.set(t, (played.get(t) ?? 0) + 1); }
-    out.push({ id: f.id, ...slot });
+
+    if (bestK !== -1) {
+      const { f } = remainingPool.splice(bestK, 1)[0];
+      assignedSlots.set(idx, f);
+      const at2 = Date.parse(slots[idx].iso);
+      for (const t of [f.home, f.away]) {
+        lastAt.set(t, at2);
+        played.set(t, (played.get(t) ?? 0) + 1);
+      }
+    }
+  }
+
+  const out: Assigned[] = [];
+  for (let idx = 0; idx < slots.length; idx++) {
+    const f = assignedSlots.get(idx);
+    if (f) {
+      out.push({ id: f.id, ...slots[idx] });
+    }
   }
   return out;
 }

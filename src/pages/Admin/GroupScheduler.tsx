@@ -2,7 +2,17 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CalendarClock, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { DEFAULT_SCHEDULE, nextSunday, scheduleFixtures, slotsPerDay, validateSchedule, type Assigned, type ScheduleOptions } from '../../lib/schedule';
+import {
+  DEFAULT_SCHEDULE,
+  nextSunday,
+  scheduleFixtures,
+  slotsPerDay,
+  validateSchedule,
+  loadScheduleRules,
+  loadScheduleRandomize,
+  type Assigned,
+  type ScheduleOptions,
+} from '../../lib/schedule';
 import { dayLabel, num, timeLabel } from '../../lib/format';
 
 export interface SchedState { opts: ScheduleOptions; auto: boolean }
@@ -27,8 +37,14 @@ export async function buildPlan(opts: ScheduleOptions, onlyUnscheduled: boolean)
   const list = (rows ?? []).filter((m) => m.home_team_id && m.away_team_id && (!onlyUnscheduled || !m.scheduled_at))
     .sort((a, b) => (order.get(a.group_id as string) ?? 0) - (order.get(b.group_id as string) ?? 0));
   const names = new Map(list.map((m) => [m.id as string, { home: nameOf(m.home as unknown as Side), away: nameOf(m.away as unknown as Side) }]));
-  return scheduleFixtures(list.map((m) => ({ id: m.id as string, home: m.home_team_id as string, away: m.away_team_id as string })), opts)
-    .map((a) => ({ ...a, ...names.get(a.id)! }));
+  const rules = loadScheduleRules();
+  const randomize = loadScheduleRandomize();
+  return scheduleFixtures(
+    list.map((m) => ({ id: m.id as string, home: m.home_team_id as string, away: m.away_team_id as string })),
+    opts,
+    rules,
+    randomize
+  ).map((a) => ({ ...a, ...names.get(a.id)! }));
 }
 export async function applyPlan(items: PlanItem[]): Promise<number> {
   const { data, error } = await supabase!.rpc('apply_group_schedule', { p_items: items.map((i) => ({ id: i.id, at: i.iso })) });
@@ -65,6 +81,11 @@ export function SchedulePanel({ state, onChange, hasGroups }: { state: SchedStat
       <p className="mb-4 text-xs leading-6 text-ivory/70">
         تُوزَّع المباريات تلقائياً بحسب الأوقات أدناه، مع تجنّب أن يلعب الفريق مباراتين متتاليتين قدر الإمكان. الأوقات بتوقيت القاهرة.
       </p>
+      {loadScheduleRules().length > 0 && (
+        <div className="mb-4 rounded-xl border border-gold/30 bg-gold/10 p-3 text-xs text-gold">
+          <span>يتم تطبيق <b>{num(loadScheduleRules().length)}</b> من قواعد مواعيد الفرق المحددة في شاشة الإعدادات.</span>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-xs font-semibold">أول يوم للمباريات
           <input type="date" className={`${input} mt-1`} value={opts.startDate} onChange={(e) => set({ startDate: e.target.value })} /></label>
