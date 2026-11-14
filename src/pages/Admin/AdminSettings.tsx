@@ -29,7 +29,15 @@ export default function AdminSettings() {
       if (e) throw e;
       await qc.invalidateQueries({ queryKey: ['tournament'] });
       setOk(`تم تحديث موعد إغلاق التسجيل إلى ${deadlineLabel(iso)} بتوقيت القاهرة.`);
-    } catch (err) { setError(err instanceof Error ? err.message : 'تعذّر حفظ الموعد.'); } finally { setBusy(false); }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+          ? (err as { message: string }).message
+          : err instanceof Error
+            ? err.message
+            : 'تعذّر حفظ الموعد.';
+      setError(msg);
+    } finally { setBusy(false); }
   };
   const fridayMidnight = () => setValue(`${nextWeekday(5)}T00:00`);
 
