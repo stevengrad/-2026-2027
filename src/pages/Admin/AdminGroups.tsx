@@ -145,7 +145,13 @@ export default function AdminGroups() {
             const plan = await buildPlan(sched.opts, false);
             if (plan.length) { const n = await applyPlan(plan); note = ` وتمت جدولة ${num(n)} مباراة ${rangeLabel(plan)}.`; }
           } catch (se: unknown) {
-            setError(`تم نشر المجموعات لكن تعذّرت الجدولة التلقائية: ${se instanceof Error ? se.message : 'خطأ غير معروف'}. يمكنك إعادة المحاولة من قسم «الجدولة التلقائية» أدناه.`);
+            const msg =
+              se && typeof se === 'object' && 'message' in se && typeof (se as { message: unknown }).message === 'string'
+                ? (se as { message: string }).message
+                : se instanceof Error
+                  ? se.message
+                  : 'خطأ غير معروف';
+            setError(`تم نشر المجموعات لكن تعذّرت الجدولة التلقائية: ${msg}. يمكنك إعادة المحاولة من قسم «الجدولة التلقائية» أدناه.`);
             note = '';
           }
         }

@@ -70,7 +70,15 @@ export function SchedulePanel({ state, onChange, hasGroups }: { state: SchedStat
     if (!plan?.length) return;
     setError(null); setBusy(true);
     try { const n = await applyPlan(plan); setDone(`تمت جدولة ${num(n)} مباراة ${rangeLabel(plan)}.`); setPlan(null); qc.invalidateQueries(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'تعذّر تطبيق الجدولة.'); } finally { setBusy(false); }
+    catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
+          ? (e as { message: string }).message
+          : e instanceof Error
+            ? e.message
+            : 'تعذّر تطبيق الجدولة.';
+      setError(msg);
+    } finally { setBusy(false); }
   };
   const days = plan ? [...new Set(plan.map((p) => p.date))] : [];
   const input = 'field !min-h-10 text-xs';
