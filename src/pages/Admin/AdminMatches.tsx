@@ -77,6 +77,15 @@ export default function AdminMatches() {
   const [homePensInput, setHomePensInput] = useState<number>(0);
   const [awayPensInput, setAwayPensInput] = useState<number>(0);
 
+  // Add Match Modal State
+  const [creatingMatch, setCreatingMatch] = useState<boolean>(false);
+  const [newStage, setNewStage] = useState<Stage>('group');
+  const [newGroupId, setNewGroupId] = useState<string>('');
+  const [newHomeId, setNewHomeId] = useState<string>('');
+  const [newAwayId, setNewAwayId] = useState<string>('');
+  const [newSchedDate, setNewSchedDate] = useState<string>('');
+  const [newStatus, setNewStatus] = useState<MatchStatus>('scheduled');
+
   // Schedule & Status Modal
   const [scheduleMatch, setScheduleMatch] = useState<AdminMatch | null>(null);
   const [schedDateInput, setSchedDateInput] = useState<string>('');
@@ -98,7 +107,18 @@ export default function AdminMatches() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Fetch approved teams (for slot assignment)
+  // Fetch groups (for creating group matches)
+  const { data: groupsList } = useQuery({
+    queryKey: ['admin_matches_groups_catalog'],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase.from('groups').select('id, group_name').order('sort_order');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Fetch approved teams (for slot assignment & creating match)
   const { data: approvedTeams } = useQuery({
     queryKey: ['admin_matches_approved_teams'],
     queryFn: async () => {
@@ -204,6 +224,89 @@ export default function AdminMatches() {
     }
   };
 
+  // Create New Match
+  const handleCreateMatch = async () => {
+    if (!newHomeId || !newAwayId) {
+      setError('يرجى اختيار طرفي المباراة (الفريق الأول والفريق الثاني).');
+      return;
+    }
+    if (newHomeId === newAwayId) {
+      setError('لا يمكن أن يلعب الفريق ضد نفسه.');
+      return;
+    }
+    if (newStage === 'group' && !newGroupId) {
+      setError('يرجى اختيار المجموعة لمباراة دور المجموعات.');
+      return;
+    }
+
+    clearMessages();
+    setBusy(true);
+    try {
+      const { data: t, error: tErr } = await supabase!.from('tournaments').select('id').limit(1).single();
+      if (tErr || !t) throw new Error('تعذّر العثور على بيانات البطولة.');
+
+      const iso = newSchedDate ? new Date(newSchedDate).toISOString() : null;
+
+      const { error: insertError } = await supabase!.from('matches').insert({
+        tournament_id: t.id,
+        stage: newStage,
+        group_id: newStage === 'group' ? newGroupId : null,
+        home_team_id: newHomeId,
+        away_team_id: newAwayId,
+        scheduled_at: iso,
+        status: newStatus,
+      });
+
+      if (insertError) throw insertError;
+
+      setSuccess('تمت إضافة المباراة بنجاح.');
+      setCreatingMatch(false);
+      setNewGroupId('');
+      setNewHomeId('');
+      setNewAwayId('');
+      setNewSchedDate('');
+      refetch();
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
+          ? (e as { message: string }).message
+          : e instanceof Error
+            ? e.message
+            : 'تعذّر إنشاء المباراة.';
+      setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Delete Match
+  const handleDeleteMatch = async (m: AdminMatch) => {
+    const home = m.home_team?.saint?.name_ar || 'الفريق الأول';
+    const away = m.away_team?.saint?.name_ar || 'الفريق الثاني';
+    if (!window.confirm(`هل أنت متأكد من رغبتك في حذف مباراة «${home} ضد ${away}» نهائياً؟`)) return;
+
+    clearMessages();
+    setBusy(true);
+    try {
+      await supabase!.from('match_events').delete().eq('match_id', m.id);
+      const { error: delError } = await supabase!.from('matches').delete().eq('id', m.id);
+      if (delError) throw delError;
+
+      setSuccess(`تم حذف مباراة «${home} ضد ${away}» بنجاح.`);
+      refetch();
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
+          ? (e as { message: string }).message
+          : e instanceof Error
+            ? e.message
+            : 'تعذّر حذف المباراة.';
+      setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Open Schedule Modal
   const openScheduleModal = (m: AdminMatch) => {
     setScheduleMatch(m);
@@ -224,17 +327,38 @@ export default function AdminMatches() {
     setBusy(true);
     try {
       const iso = schedDateInput ? new Date(schedDateInput).toISOString() : null;
-      await callFunction('manage-match', {
-        action: 'update_details',
-        matchId: scheduleMatch.id,
-        scheduledAt: iso,
-        status: statusInput,
-      });
+      let ok = false;
+      try {
+        await callFunction('manage-match', {
+          action: 'update_details',
+          matchId: scheduleMatch.id,
+          scheduledAt: iso,
+          status: statusInput,
+        });
+        ok = true;
+      } catch {
+        ok = false;
+      }
+
+      if (!ok) {
+        const { error: dbErr } = await supabase!
+          .from('matches')
+          .update({ scheduled_at: iso, status: statusInput })
+          .eq('id', scheduleMatch.id);
+        if (dbErr) throw dbErr;
+      }
+
       setSuccess('تم تحديث موعد وحالة المباراة بنجاح.');
       setScheduleMatch(null);
       refetch();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'تعذّر تحديث موعد المباراة.');
+      const msg =
+        e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
+          ? (e as { message: string }).message
+          : e instanceof Error
+            ? e.message
+            : 'تعذّر تحديث موعد المباراة.';
+      setError(msg);
     } finally {
       setBusy(false);
     }
@@ -356,14 +480,24 @@ export default function AdminMatches() {
             تحديد مواعيد المباريات، إدخال النتائج وركلات الترجيح، وتسجيل أحداث الأهداف والبطاقات.
           </p>
         </div>
-        <button
-          onClick={() => refetch()}
-          className="btn-ghost !min-h-9 !px-3 text-xs"
-          disabled={busy || isLoading}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
-          تحديث
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCreatingMatch(true)}
+            className="btn-gold !min-h-9 !px-3.5 text-xs flex items-center gap-1.5"
+            disabled={busy || isLoading}
+          >
+            <Plus className="h-4 w-4" />
+            <span>إضافة مباراة</span>
+          </button>
+          <button
+            onClick={() => refetch()}
+            className="btn-ghost !min-h-9 !px-3 text-xs"
+            disabled={busy || isLoading}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
+            تحديث
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -601,6 +735,16 @@ export default function AdminMatches() {
                       title="عرض وإضافة أحداث المباراة (أهداف وبطاقات)"
                     >
                       الأحداث ({num(m.events?.length ?? 0)})
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteMatch(m)}
+                      disabled={busy}
+                      className="btn-ghost !min-h-8 !px-2.5 text-xs text-danger hover:border-danger hover:text-danger"
+                      title="حذف هذه المباراة نهائياً"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      حذف
                     </button>
                   </div>
                 </div>
@@ -1024,6 +1168,146 @@ export default function AdminMatches() {
                 disabled={busy}
               >
                 {busy ? 'جارٍ التعيين…' : 'حفظ التعيين'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Match Modal */}
+      {creatingMatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-gold/40 bg-midnight p-6 shadow-2xl space-y-4">
+            <h2 className="font-heading text-lg font-bold text-gold flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              إضافة مباراة جديدة للبطولة
+            </h2>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ivory">
+                  المرحلة / الدور:
+                </label>
+                <select
+                  className="field text-xs"
+                  value={newStage}
+                  onChange={(e) => setNewStage(e.target.value as Stage)}
+                >
+                  <option value="group">دور المجموعات</option>
+                  <option value="round_of_16">دور الـ١٦</option>
+                  <option value="quarter_final">ربع النهائي</option>
+                  <option value="semi_final">نصف النهائي</option>
+                  <option value="third_place">المركز الثالث</option>
+                  <option value="final">النهائي</option>
+                </select>
+              </div>
+
+              {newStage === 'group' && (
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-ivory">
+                    المجموعة:
+                  </label>
+                  <select
+                    className="field text-xs"
+                    value={newGroupId}
+                    onChange={(e) => setNewGroupId(e.target.value)}
+                  >
+                    <option value="">-- اختر المجموعة --</option>
+                    {(groupsList ?? []).map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.group_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ivory">
+                  الفريق الأول (Home):
+                </label>
+                <select
+                  className="field text-xs"
+                  value={newHomeId}
+                  onChange={(e) => setNewHomeId(e.target.value)}
+                >
+                  <option value="">-- اختر الفريق الأول --</option>
+                  {(approvedTeams ?? []).map((t) => {
+                    const saint = Array.isArray(t.saint) ? t.saint[0] : t.saint;
+                    return (
+                      <option key={t.id} value={t.id}>
+                        {saint?.name_ar ?? `فريق #${t.team_number}`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ivory">
+                  الفريق الثاني (Away):
+                </label>
+                <select
+                  className="field text-xs"
+                  value={newAwayId}
+                  onChange={(e) => setNewAwayId(e.target.value)}
+                >
+                  <option value="">-- اختر الفريق الثاني --</option>
+                  {(approvedTeams ?? []).map((t) => {
+                    const saint = Array.isArray(t.saint) ? t.saint[0] : t.saint;
+                    return (
+                      <option key={t.id} value={t.id}>
+                        {saint?.name_ar ?? `فريق #${t.team_number}`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-semibold text-ivory">
+                  موعد المباراة (بتوقيت القاهرة):
+                </label>
+                <input
+                  type="datetime-local"
+                  className="field text-xs"
+                  value={newSchedDate}
+                  onChange={(e) => setNewSchedDate(e.target.value)}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-semibold text-ivory">
+                  حالة المباراة:
+                </label>
+                <select
+                  className="field text-xs"
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value as MatchStatus)}
+                >
+                  <option value="scheduled">لم تبدأ (Scheduled)</option>
+                  <option value="live">جارية الآن (Live)</option>
+                  <option value="postponed">مؤجلة (Postponed)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2 border-t border-ivory/10 pt-4">
+              <button
+                type="button"
+                onClick={() => setCreatingMatch(false)}
+                className="btn-ghost !min-h-9 !px-3 text-xs"
+                disabled={busy}
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateMatch}
+                className="btn-gold !min-h-9 !px-4 text-xs"
+                disabled={busy}
+              >
+                {busy ? 'جارٍ الإضافة…' : 'إضافة المباراة'}
               </button>
             </div>
           </div>

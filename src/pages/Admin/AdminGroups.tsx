@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Shuffle,
@@ -11,6 +12,7 @@ import { supabase, callFunction } from '../../lib/supabase';
 import { Empty, Skeleton } from '../../components/ui/States';
 import { SaintAvatar } from '../../components/ui/SaintAvatar';
 import { num } from '../../lib/format';
+import { adminPath } from '../../lib/adminRoute';
 import { SchedulePanel, applyPlan, buildPlan, initialSched, rangeLabel, type SchedState } from './GroupScheduler';
 
 interface PreviewTeam {
@@ -291,6 +293,23 @@ export default function AdminGroups() {
       )}
 
       <SchedulePanel state={sched} onChange={setSched} hasGroups={(existingGroups?.length ?? 0) > 0} />
+
+      {(existingGroups?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-gold/10 p-4">
+          <div>
+            <h3 className="font-heading text-sm font-bold text-gold">التحكم الكامل في مواعيد وتفاصيل المباريات</h3>
+            <p className="text-xs text-ivory/70 mt-0.5">
+              بعد إجراء القرعة أو الجدولة، يمكنك إضافة مباريات جديدة أو حذف أي مباراة أو تعديل موعد أي مباراة بالدقيقة من شاشة إدارة المباريات.
+            </p>
+          </div>
+          <Link
+            to={adminPath('matches')}
+            className="btn-gold !min-h-9 !px-4 text-xs shrink-0"
+          >
+            الانتقال لإدارة وتعديل المباريات ←
+          </Link>
+        </div>
+      )}
 
       {/* Preview Section */}
       {preview && (
